@@ -15,7 +15,7 @@ export function formatDate(date: string | Date): string {
 /**
  * Format time as HH:MM with English numbers
  */
-export function formatTime(date: string | Date | number): string {
+export function formatTime(date: string | Date): string {
   const d = new Date(date);
   const hours = d.getHours().toString().padStart(2, '0');
   const minutes = d.getMinutes().toString().padStart(2, '0');

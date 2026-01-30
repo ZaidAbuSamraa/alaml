@@ -1,7 +1,7 @@
 // API Configuration
 // This file centralizes all API calls to use environment variables
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3006';
 
 // Helper function to make authenticated API calls
 export async function apiCall(endpoint: string, options: RequestInit = {}) {

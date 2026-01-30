@@ -95,7 +95,7 @@ npm run seed
 npm run start:dev
 ```
 
-**Backend سيعمل على:** http://localhost:3000
+**Backend سيعمل على:** http://localhost:3006
 
 ### 4. إعداد Frontend
 ```bash
@@ -109,18 +109,18 @@ cp .env.local.example .env.local
 npm run dev
 ```
 
-**Frontend سيعمل على:** http://localhost:3001
+**Frontend سيعمل على:** http://localhost:3007
 
 ---
 
 ## 🌐 النشر على VPS
 
-⚠️ **مهم جداً:** التطبيق يستخدم حالياً عناوين API ثابتة (hardcoded) مثل `http://localhost:3000`
+⚠️ **مهم جداً:** التطبيق يستخدم حالياً عناوين API ثابتة (hardcoded) مثل `http://localhost:3006`
 
 ### المشكلة
 جميع ملفات Frontend تحتوي على:
 ```typescript
-fetch('http://localhost:3000/employees', ...)
+fetch('http://localhost:3006/employees', ...)
 ```
 
 هذا **لن يعمل** على VPS!
@@ -254,7 +254,7 @@ npm run start              # تشغيل الإنتاج
 1. **Environment Variables:** لا تنسى تعديل `.env` و `.env.local` قبل النشر
 2. **Database Backup:** قم بعمل نسخ احتياطية دورية
 3. **SSL Certificate:** استخدم Let's Encrypt للحصول على HTTPS مجاناً
-4. **Firewall:** تأكد من فتح البورتات المطلوبة (80, 443, 3000)
+4. **Firewall:** تأكد من فتح البورتات المطلوبة (80, 443, 3006)
 
 ---
 

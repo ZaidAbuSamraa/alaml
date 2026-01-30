@@ -154,7 +154,7 @@
 ✅ **All pages use the same PostgreSQL database**: `alaml`
 ✅ **All entities registered in AppModule**
 ✅ **TypeORM synchronize ensures schema consistency**
-✅ **All API calls use same backend server**: `http://localhost:3000`
+✅ **All API calls use same backend server**: `http://localhost:3006`
 ✅ **All requests authenticated with same JWT token**
 
 ---

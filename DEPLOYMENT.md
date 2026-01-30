@@ -4,7 +4,7 @@
 
 حالياً، جميع ملفات Frontend تحتوي على عناوين API ثابتة (hardcoded) مثل:
 ```typescript
-fetch('http://localhost:3000/employees', ...)
+fetch('http://localhost:3006/employees', ...)
 ```
 
 هذا **لن يعمل** عند النشر على VPS لأن:
@@ -21,12 +21,12 @@ fetch('http://localhost:3000/employees', ...)
 
 **للتطوير المحلي:**
 ```bash
-NEXT_PUBLIC_API_URL=http://localhost:3000
+NEXT_PUBLIC_API_URL=http://localhost:3006
 ```
 
 **للإنتاج على VPS:**
 ```bash
-NEXT_PUBLIC_API_URL=http://YOUR_VPS_IP:3000
+NEXT_PUBLIC_API_URL=http://YOUR_VPS_IP:3006
 # أو
 NEXT_PUBLIC_API_URL=https://api.yourdomain.com
 ```
@@ -37,7 +37,7 @@ NEXT_PUBLIC_API_URL=https://api.yourdomain.com
 
 **قبل:**
 ```typescript
-const response = await fetch('http://localhost:3000/employees', {
+const response = await fetch('http://localhost:3006/employees', {
   headers: { 'Authorization': `Bearer ${token}` },
 });
 ```

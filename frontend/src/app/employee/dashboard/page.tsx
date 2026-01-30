@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { API_URL } from '@/lib/api';
-import { formatDate, formatTime } from '@/lib/formatters';
+import { formatDate } from '@/lib/formatters';
 
 interface TimeLog {
   id: number;
@@ -190,11 +190,18 @@ export default function EmployeeDashboard() {
     router.push('/login');
   };
 
-  const formatTime = (seconds: number) => {
+  const formatElapsedTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
   };
 
   const formatHoursWorked = (hours: number) => {
@@ -257,7 +264,7 @@ export default function EmployeeDashboard() {
             <div>
               <h2 className="text-2xl font-bold text-primary-400 mb-4">جلسة نشطة</h2>
               <div className="text-6xl font-bold text-green-400 mb-6">
-                {formatTime(elapsedTime)}
+                {formatElapsedTime(elapsedTime)}
               </div>
               <p className="text-gray-400 mb-6">
                 بدأت في: {new Date(activeSession.clockIn).toLocaleString('ar-EG')}

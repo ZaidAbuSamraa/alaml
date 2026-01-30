@@ -29,6 +29,15 @@ interface Payment {
   notes: string;
 }
 
+interface CashflowNote {
+  id: number;
+  amount: number;
+  recipientName: string;
+  date: string;
+  description: string;
+  cashflowPaymentId: number;
+}
+
 // WhatsApp helper function
 const sendWhatsApp = (phone: string, message: string) => {
   const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
@@ -43,11 +52,12 @@ export default function SupplierDetailPage() {
   const [supplier, setSupplier] = useState<Supplier | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [cashflowNotes, setCashflowNotes] = useState<CashflowNote[]>([]);
   const [filteredInvoices, setFilteredInvoices] = useState<Invoice[]>([]);
   const [filteredPayments, setFilteredPayments] = useState<Payment[]>([]);
   const [invoiceDateFilter, setInvoiceDateFilter] = useState('');
   const [paymentDateFilter, setPaymentDateFilter] = useState('');
-  const [activeTab, setActiveTab] = useState<'invoices' | 'payments'>('invoices');
+  const [activeTab, setActiveTab] = useState<'invoices' | 'payments' | 'cashflow-notes'>('invoices');
   const [loading, setLoading] = useState(true);
   const [showAddInvoice, setShowAddInvoice] = useState(false);
   const [showAddPayment, setShowAddPayment] = useState(false);
@@ -128,6 +138,15 @@ export default function SupplierDetailPage() {
         const paymentsData = await paymentsRes.json();
         setPayments(paymentsData);
         setFilteredPayments(paymentsData);
+      }
+
+      const cashflowNotesRes = await fetch(`${API_URL}/suppliers/${supplierId}/cashflow-notes`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      
+      if (cashflowNotesRes.ok) {
+        const cashflowNotesData = await cashflowNotesRes.json();
+        setCashflowNotes(cashflowNotesData);
       }
     } catch (err) {
       console.error('Error fetching data:', err);
@@ -486,6 +505,24 @@ export default function SupplierDetailPage() {
               activeTab === 'payments' ? 'bg-dark-950/30' : 'bg-primary-500/20 text-primary-400'
             }`}>
               {payments.length}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab('cashflow-notes')}
+            className={`flex-1 py-4 px-6 rounded-xl font-bold transition-all duration-300 flex items-center justify-center gap-3 ${
+              activeTab === 'cashflow-notes'
+                ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-dark-950 shadow-lg shadow-primary-500/50 scale-105'
+                : 'bg-dark-900/80 text-gray-400 hover:text-primary-400 border-2 border-dark-700 hover:border-primary-500/50'
+            }`}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+            </svg>
+            ملاحظات Cashflow
+            <span className={`px-2 py-1 rounded-lg text-xs font-bold ${
+              activeTab === 'cashflow-notes' ? 'bg-dark-950/30' : 'bg-primary-500/20 text-primary-400'
+            }`}>
+              {cashflowNotes.length}
             </span>
           </button>
         </div>
@@ -866,6 +903,61 @@ export default function SupplierDetailPage() {
                               حذف
                             </button>
                           </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'cashflow-notes' && (
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-primary-600 flex items-center gap-2">
+                <svg className="w-6 h-6 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                </svg>
+                ملاحظات Cashflow
+              </h2>
+            </div>
+
+            <div className="bg-dark-900/80 backdrop-blur-xl rounded-2xl shadow-2xl border-2 border-primary-500/30 overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-dark-800 border-b border-primary-500/20">
+                  <tr>
+                    <th className="px-6 py-4 text-right text-sm font-bold text-primary-400">المبلغ</th>
+                    <th className="px-6 py-4 text-right text-sm font-bold text-primary-400">التاريخ</th>
+                    <th className="px-6 py-4 text-right text-sm font-bold text-primary-400">اسم المستلم</th>
+                    <th className="px-6 py-4 text-right text-sm font-bold text-primary-400">الوصف</th>
+                    <th className="px-6 py-4 text-right text-sm font-bold text-primary-400">مصدر الدفعة</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-dark-800">
+                  {cashflowNotes.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
+                        لا توجد ملاحظات من Cashflow لهذا المورد
+                      </td>
+                    </tr>
+                  ) : (
+                    cashflowNotes.map((note) => (
+                      <tr key={note.id} className="hover:bg-dark-800/50 transition">
+                        <td className="px-6 py-4 text-orange-400 font-bold">{Math.round(note.amount)}</td>
+                        <td className="px-6 py-4 text-gray-300">
+                          {formatDate(note.date)}
+                        </td>
+                        <td className="px-6 py-4 text-white font-medium">{note.recipientName}</td>
+                        <td className="px-6 py-4 text-gray-400">{note.description || '-'}</td>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex items-center gap-1 px-3 py-1 bg-orange-500/20 text-orange-300 rounded-lg text-xs font-medium">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            Cashflow #{note.cashflowPaymentId}
+                          </span>
                         </td>
                       </tr>
                     ))

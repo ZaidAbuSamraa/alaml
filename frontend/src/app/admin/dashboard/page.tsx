@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { API_URL } from '@/lib/api';
@@ -48,6 +48,7 @@ export default function AdminDashboard() {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
+  const notificationsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -78,6 +79,22 @@ export default function AdminDashboard() {
     
     return () => clearInterval(interval);
   }, [router]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target as Node)) {
+        setShowNotifications(false);
+      }
+    };
+
+    if (showNotifications) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showNotifications]);
 
   const fetchCash = async () => {
     try {
@@ -235,7 +252,7 @@ export default function AdminDashboard() {
           <div className="flex justify-between items-center h-16">
             <h1 className="text-2xl font-bold text-primary-400">لوحة التحكم</h1>
             <div className="flex items-center gap-4">
-              <div className="relative">
+              <div className="relative" ref={notificationsRef}>
                 <button
                   onClick={() => setShowNotifications(!showNotifications)}
                   className="relative p-2 text-gray-300 hover:text-primary-400 transition"
@@ -273,7 +290,7 @@ export default function AdminDashboard() {
                   </div>
                 )}
               </div>
-              <span className="text-gray-300">مرحباً، {user?.username}</span>
+              <span className="text-gray-300">مرحباً، abood</span>
               <button
                 onClick={handleLogout}
                 className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition"
@@ -290,7 +307,7 @@ export default function AdminDashboard() {
         {analytics && (
           <div className="mb-8">
             <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-primary-600 mb-6">الملخص المالي</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {/* Cash */}
               <div 
                 className="bg-dark-900/80 backdrop-blur-xl p-6 rounded-2xl border border-primary-500/30 hover:border-primary-500/50 transition-all shadow-lg cursor-pointer"
@@ -352,6 +369,26 @@ export default function AdminDashboard() {
                 }`}>{Math.round(baseCash + totalSales - analytics.summary.totalPayments)}</p>
                 <p className="text-xs text-gray-500 mt-1">الأساسي + المبيعات - الدفعات</p>
               </div>
+
+              {/* Supplier Balance (Invoices - Payments) */}
+              <Link href="/admin/analytics">
+                <div className="bg-dark-900/80 backdrop-blur-xl p-6 rounded-2xl border border-orange-500/30 hover:border-orange-500/50 transition-all shadow-lg cursor-pointer group">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-gray-400 text-sm font-semibold group-hover:text-orange-300">الرصيد المستحق</h3>
+                    <div className="w-10 h-10 bg-orange-500/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <svg className="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
+                    </div>
+                  </div>
+                  <p className={`text-3xl font-bold ${
+                    analytics.summary.balance > 0 ? 'text-red-400' : analytics.summary.balance < 0 ? 'text-green-400' : 'text-gray-400'
+                  }`}>{Math.round(Math.abs(analytics.summary.balance))}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {analytics.summary.balance > 0 ? 'مستحق للموردين' : analytics.summary.balance < 0 ? 'زيادة دفع' : 'متوازن'}
+                  </p>
+                </div>
+              </Link>
             </div>
           </div>
         )}
@@ -466,6 +503,22 @@ export default function AdminDashboard() {
                 <div className="w-16 h-16 bg-primary-500/20 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
                   <svg className="w-8 h-8 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </Link>
+
+          <Link href="/admin/cashflow" className="md:col-span-2 lg:col-span-3">
+            <div className="bg-dark-900/80 backdrop-blur-xl p-8 rounded-2xl shadow-xl border border-cyan-500/30 hover:border-cyan-500/50 transition-all cursor-pointer group hover:scale-105">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-2xl font-bold text-cyan-400 group-hover:text-cyan-300 mb-3">Cash Flow</h3>
+                  <p className="text-gray-400 text-base">Track daily cash flow and payments</p>
+                </div>
+                <div className="w-16 h-16 bg-cyan-500/20 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <svg className="w-8 h-8 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                   </svg>
                 </div>
               </div>

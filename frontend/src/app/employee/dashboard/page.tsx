@@ -225,6 +225,15 @@ export default function EmployeeDashboard() {
           <div className="flex justify-between items-center h-16">
             <h1 className="text-2xl font-bold text-primary-400">لوحة تحكم الموظف</h1>
             <div className="flex items-center gap-3">
+              {user?.specialization && (
+                <div className="flex items-center gap-2 bg-primary-500/20 border border-primary-500/30 px-4 py-2 rounded-lg">
+                  <svg className="w-5 h-5 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  <span className="text-primary-300 font-semibold">{user.specialization}</span>
+                </div>
+              )}
+              <span className="text-gray-300">مرحباً، {user?.username}</span>
               <Link
                 href="/employee/requests"
                 className="bg-primary-600 hover:bg-primary-700 text-dark-950 px-4 py-2 rounded-lg transition font-semibold flex items-center gap-2"

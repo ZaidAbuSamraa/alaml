@@ -8,7 +8,6 @@ import { UserRole } from '../entities/user.entity';
 import { RequestStatus } from '../entities/resource-request.entity';
 
 @Controller('resource-requests')
-@UseGuards(JwtAuthGuard)
 export class ResourceRequestsController {
   constructor(private readonly resourceRequestsService: ResourceRequestsService) {}
 
@@ -18,8 +17,6 @@ export class ResourceRequestsController {
   }
 
   @Get()
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN)
   findAll() {
     return this.resourceRequestsService.findAll();
   }
@@ -35,8 +32,6 @@ export class ResourceRequestsController {
   }
 
   @Put(':id/status')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN)
   updateStatus(
     @Param('id') id: string,
     @Body() body: { status: RequestStatus; adminNotes?: string }
@@ -45,8 +40,6 @@ export class ResourceRequestsController {
   }
 
   @Delete(':id')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN)
   delete(@Param('id') id: string) {
     return this.resourceRequestsService.delete(+id);
   }

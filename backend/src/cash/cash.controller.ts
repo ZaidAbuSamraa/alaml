@@ -6,8 +6,6 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../entities/user.entity';
 
 @Controller('cash')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN)
 export class CashController {
   constructor(private readonly cashService: CashService) {}
 

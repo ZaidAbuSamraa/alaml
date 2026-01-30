@@ -9,8 +9,6 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../entities/user.entity';
 
 @Controller('suppliers')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN)
 export class SuppliersController {
   constructor(private readonly suppliersService: SuppliersService) {}
 
@@ -72,5 +70,10 @@ export class SuppliersController {
   @Delete('payments/:id')
   deletePayment(@Param('id') id: string) {
     return this.suppliersService.deletePayment(+id);
+  }
+
+  @Get(':id/cashflow-notes')
+  getCashflowNotes(@Param('id') id: string) {
+    return this.suppliersService.getCashflowNotes(+id);
   }
 }

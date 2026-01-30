@@ -5,6 +5,7 @@ import { Supplier } from '../entities/supplier.entity';
 import { Invoice } from '../entities/invoice.entity';
 import { Payment } from '../entities/payment.entity';
 import { Transaction, TransactionType } from '../entities/transaction.entity';
+import { SupplierCashflowNote } from '../entities/supplier-cashflow-note.entity';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { CreatePaymentDto } from './dto/create-payment.dto';
@@ -20,6 +21,8 @@ export class SuppliersService {
     private paymentRepository: Repository<Payment>,
     @InjectRepository(Transaction)
     private transactionRepository: Repository<Transaction>,
+    @InjectRepository(SupplierCashflowNote)
+    private supplierCashflowNoteRepository: Repository<SupplierCashflowNote>,
   ) {}
 
   async createSupplier(createSupplierDto: CreateSupplierDto) {
@@ -47,7 +50,31 @@ export class SuppliersService {
   }
 
   async removeSupplier(id: number) {
+    const supplier = await this.supplierRepository.findOne({ 
+      where: { id },
+      relations: ['invoices', 'payments']
+    });
+    
+    if (!supplier) {
+      throw new NotFoundException('المورد غير موجود');
+    }
+
+    // Delete all transactions related to this supplier
+    await this.transactionRepository.delete({ supplier: { id } });
+    
+    // Delete all invoices
+    if (supplier.invoices && supplier.invoices.length > 0) {
+      await this.invoiceRepository.delete({ supplierId: id });
+    }
+    
+    // Delete all payments
+    if (supplier.payments && supplier.payments.length > 0) {
+      await this.paymentRepository.delete({ supplierId: id });
+    }
+    
+    // Finally delete the supplier
     await this.supplierRepository.delete(id);
+    
     return { message: 'تم حذف المورد بنجاح' };
   }
 
@@ -159,5 +186,12 @@ export class SuppliersService {
     await this.paymentRepository.delete(id);
     
     return { message: 'تم حذف الدفعة بنجاح' };
+  }
+
+  async getCashflowNotes(supplierId: number) {
+    return await this.supplierCashflowNoteRepository.find({
+      where: { supplierId },
+      order: { date: 'DESC' },
+    });
   }
 }

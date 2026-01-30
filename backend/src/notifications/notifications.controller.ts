@@ -6,8 +6,6 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../entities/user.entity';
 
 @Controller('notifications')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN)
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 

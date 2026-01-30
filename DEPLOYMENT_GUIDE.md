@@ -363,7 +363,7 @@ pm2 logs alaml-frontend
 # تحقق من:
 # - ملف .env.local
 # - NEXT_PUBLIC_API_URL صحيح
-# - البورت 3001 متاح
+# - البورت 3007 متاح
 ```
 
 ### 3. Nginx لا يعمل:

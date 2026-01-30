@@ -68,7 +68,15 @@ export class ResourceRequestsService {
     return await this.resourceRequestRepository.save(request);
   }
 
-  async delete(id: number): Promise<void> {
+  async delete(id: number): Promise<{ message: string }> {
+    const request = await this.resourceRequestRepository.findOne({ where: { id } });
+    
+    if (!request) {
+      throw new NotFoundException('الطلب غير موجود');
+    }
+    
     await this.resourceRequestRepository.delete(id);
+    
+    return { message: 'تم حذف الطلب بنجاح' };
   }
 }

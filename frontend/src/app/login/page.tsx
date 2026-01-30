@@ -13,7 +13,6 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Check if user is already logged in
   useEffect(() => {
     const token = localStorage.getItem('token');
     const userStr = localStorage.getItem('user');
@@ -21,14 +20,12 @@ export default function LoginPage() {
     if (token && userStr) {
       try {
         const user = JSON.parse(userStr);
-        // Redirect based on role
         if (user.role === 'admin') {
           router.push('/admin/dashboard');
         } else if (user.type === 'employee') {
           router.push('/employee/dashboard');
         }
       } catch (err) {
-        // Invalid user data, stay on login page
       }
     }
   }, [router]);
@@ -56,7 +53,6 @@ export default function LoginPage() {
       localStorage.setItem('token', data.access_token);
       localStorage.setItem('user', JSON.stringify(data.user));
 
-      // Redirect based on role
       if (data.user.role === 'admin') {
         window.location.href = '/admin/dashboard';
       } else if (data.user.type === 'employee') {
@@ -168,16 +164,6 @@ export default function LoginPage() {
             )}
           </button>
         </form>
-
-        {/* Default credentials hint */}
-        <div className="mt-6 p-4 bg-dark-900/50 border border-primary-500/20 rounded-xl">
-          <p className="text-xs text-gray-400 text-center mb-2">بيانات الدخول الافتراضية:</p>
-          <div className="flex justify-center gap-4 text-xs">
-            <span className="text-primary-400 font-mono">admin</span>
-            <span className="text-gray-500">|</span>
-            <span className="text-primary-400 font-mono">admin123</span>
-          </div>
-        </div>
       </div>
     </div>
   );

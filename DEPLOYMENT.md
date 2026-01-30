@@ -126,7 +126,7 @@ DB_USERNAME=alaml_user
 DB_PASSWORD=your_secure_password
 DB_DATABASE=alaml
 JWT_SECRET=your_very_secure_jwt_secret_key_here
-PORT=3000
+PORT=3006
 ```
 
 ```bash
@@ -154,7 +154,7 @@ nano .env.local
 محتوى ملف `.env.local`:
 ```env
 # استخدم IP الخاص بـ VPS أو Domain
-NEXT_PUBLIC_API_URL=http://YOUR_VPS_IP:3000
+NEXT_PUBLIC_API_URL=http://YOUR_VPS_IP:3006
 # أو
 NEXT_PUBLIC_API_URL=https://api.yourdomain.com
 ```
@@ -183,7 +183,7 @@ server {
     server_name api.yourdomain.com;
 
     location / {
-        proxy_pass http://localhost:3000;
+        proxy_pass http://localhost:3006;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -224,7 +224,7 @@ sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com -d api.yourdomain.c
 
 ## الملفات التي تحتاج تحديث 📝
 
-يجب تحديث جميع ملفات Frontend التالية لاستخدام `API_URL` بدلاً من `localhost:3000`:
+يجب تحديث جميع ملفات Frontend التالية لاستخدام `API_URL` بدلاً من `localhost:3006`:
 
 1. `frontend/src/app/admin/employees/page.tsx`
 2. `frontend/src/app/admin/employees/[id]/page.tsx`
@@ -265,7 +265,7 @@ pm2 delete alaml-frontend
 
 1. **الأمان**: غير `JWT_SECRET` إلى قيمة عشوائية قوية
 2. **قاعدة البيانات**: استخدم كلمة مرور قوية لقاعدة البيانات
-3. **Firewall**: تأكد من فتح البورتات المطلوبة (80, 443, 3000)
+3. **Firewall**: تأكد من فتح البورتات المطلوبة (80, 443, 3006)
 4. **Backup**: قم بعمل نسخ احتياطية دورية لقاعدة البيانات
 5. **Updates**: قم بتحديث النظام والمكتبات بانتظام
 

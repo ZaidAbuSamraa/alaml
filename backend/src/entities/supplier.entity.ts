@@ -1,6 +1,7 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
 import { Invoice } from './invoice.entity';
 import { Payment } from './payment.entity';
+import { SupplierCashflowNote } from './supplier-cashflow-note.entity';
 
 @Entity('suppliers')
 export class Supplier {
@@ -18,6 +19,9 @@ export class Supplier {
 
   @OneToMany(() => Payment, payment => payment.supplier)
   payments: Payment[];
+
+  @OneToMany(() => SupplierCashflowNote, note => note.supplier)
+  cashflowNotes: SupplierCashflowNote[];
 
   @CreateDateColumn()
   createdAt: Date;

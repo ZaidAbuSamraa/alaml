@@ -6,8 +6,6 @@ import { UserRole } from '../entities/user.entity';
 import { AnalyticsService } from './analytics.service';
 
 @Controller('analytics')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN)
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 

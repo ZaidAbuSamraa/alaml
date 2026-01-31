@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Res } from '@nestjs/common';
+import { Response } from 'express';
 import { CashFlowService } from './cashflow.service';
 import { CreateOpeningCashDto, CreateSalesDto, CreatePaymentDto, UpdateDaySettingsDto, UpdateSettingsDto } from './dto/cashflow.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -52,5 +53,18 @@ export class CashFlowController {
   @Get('payments')
   async getAllPayments() {
     return this.cashFlowService.getAllPayments();
+  }
+
+  @Delete('reset/:month')
+  async resetMonth(@Param('month') month: string) {
+    return this.cashFlowService.resetMonth(month);
+  }
+
+  @Get('export/:month')
+  async exportToExcel(@Param('month') month: string, @Res() res: Response) {
+    const buffer = await this.cashFlowService.exportToExcel(month);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=cashflow-${month}.xlsx`);
+    res.send(buffer);
   }
 }

@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { TimeLog } from '../entities/time-log.entity';
 import { Employee } from '../entities/employee.entity';
 import { Notification, NotificationType } from '../entities/notification.entity';
+import { WhatsAppService } from '../whatsapp/whatsapp.service';
 
 @Injectable()
 export class TimeLogsService {
@@ -14,6 +15,7 @@ export class TimeLogsService {
     private employeeRepository: Repository<Employee>,
     @InjectRepository(Notification)
     private notificationRepository: Repository<Notification>,
+    private whatsAppService: WhatsAppService,
   ) {}
 
   async clockIn(employeeId: number): Promise<TimeLog> {
@@ -47,6 +49,8 @@ export class TimeLogsService {
         isRead: false,
       });
       await this.notificationRepository.save(notification);
+      
+      await this.whatsAppService.sendNotificationViaAPI(notification.message);
 
       return savedLog;
     } catch (error) {
@@ -103,6 +107,8 @@ export class TimeLogsService {
         isRead: false,
       });
       await this.notificationRepository.save(notification);
+      
+      await this.whatsAppService.sendNotificationViaAPI(notification.message);
 
       return savedLog;
     } catch (error) {

@@ -52,6 +52,7 @@ export default function EmployeeTimeLogPage() {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [totalHours, setTotalHours] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [activeSessionTimer, setActiveSessionTimer] = useState<{[key: number]: {elapsed: number, salary: number}}>({})
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -67,6 +68,25 @@ export default function EmployeeTimeLogPage() {
       fetchMonthlyEarnings(Number(employeeId), selectedYear, selectedMonth);
     }
   }, [selectedYear, selectedMonth, employeeId]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const activeLogs = filteredTimeLogs.filter(log => log.status === 'active');
+      if (activeLogs.length > 0 && employee) {
+        const updatedTimers: {[key: number]: {elapsed: number, salary: number}} = {};
+        activeLogs.forEach(log => {
+          const now = new Date().getTime();
+          const clockIn = new Date(log.clockIn).getTime();
+          const elapsed = Math.floor((now - clockIn) / 1000);
+          const hoursWorked = elapsed / 3600;
+          const calculatedSalary = hoursWorked * employee.hourlyWage;
+          updatedTimers[log.id] = { elapsed, salary: calculatedSalary };
+        });
+        setActiveSessionTimer(updatedTimers);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [filteredTimeLogs, employee]);
 
   const fetchEmployeeData = async () => {
     try {
@@ -342,10 +362,19 @@ export default function EmployeeTimeLogPage() {
                         {log.clockOut ? formatTime(log.clockOut) : '-'}
                       </td>
                       <td className="px-6 py-4 text-primary-400 font-bold">
-                        {log.hoursWorked ? formatHoursMinutes(Number(log.hoursWorked)) : '-'}
+                        {log.status === 'active' && activeSessionTimer[log.id] 
+                          ? formatHoursMinutes(activeSessionTimer[log.id].elapsed / 3600)
+                          : log.hoursWorked ? formatHoursMinutes(Number(log.hoursWorked)) : '-'
+                        }
                       </td>
-                      <td className="px-6 py-4 text-green-400 font-bold">
-                        {log.earnedSalary ? Number(log.earnedSalary).toFixed(2) : '-'}
+                      <td className="px-6 py-4 font-bold">
+                        {log.status === 'active' && activeSessionTimer[log.id] ? (
+                          <span className="text-yellow-400 animate-pulse">
+                            {activeSessionTimer[log.id].salary.toFixed(2)} ₪
+                          </span>
+                        ) : log.earnedSalary ? (
+                          <span className="text-green-400">{Number(log.earnedSalary).toFixed(2)} ₪</span>
+                        ) : '-'}
                       </td>
                       <td className="px-6 py-4">
                         {log.status === 'active' ? (

@@ -6,6 +6,7 @@ import { CashFlowPayment } from '../entities/cashflow-payment.entity';
 import { CashFlowSettings } from '../entities/cashflow-settings.entity';
 import { Supplier } from '../entities/supplier.entity';
 import { SupplierCashflowNote } from '../entities/supplier-cashflow-note.entity';
+import * as ExcelJS from 'exceljs';
 
 @Injectable()
 export class CashFlowService {
@@ -204,23 +205,14 @@ export class CashFlowService {
         endingCash = currentDay.openingCash + currentDay.sales - currentDay.totalPayments;
         tomorrowPayments = 0;
       } else {
-        // وضع النقل: المدفوعات تظهر في عمود "مدفوعات الغد"
-        tomorrowPayments = currentDay.totalPayments;
-        
-        // نتحقق من اليوم السابق: هل كان في وضع النقل؟
+        // وضع النقل: المدفوعات تُخصم من اليوم السابق
+        // نخصم المدفوعات من اليوم السابق بدلاً من اليوم الحالي
         if (i > 0) {
           const previousDay = result[i - 1];
-          if (!previousDay.deductSameDay) {
-            // اليوم السابق كان في وضع النقل، نخصم مدفوعاته من اليوم الحالي
-            endingCash = currentDay.openingCash + currentDay.sales - previousDay.totalPayments;
-          } else {
-            // اليوم السابق كان في وضع نفس اليوم، لا نخصم شيء إضافي
-            endingCash = currentDay.openingCash + currentDay.sales;
-          }
-        } else {
-          // اليوم الأول، لا يوجد يوم سابق
-          endingCash = currentDay.openingCash + currentDay.sales;
+          previousDay.endingCash = previousDay.endingCash - currentDay.totalPayments;
+          tomorrowPayments = currentDay.totalPayments;
         }
+        endingCash = currentDay.openingCash + currentDay.sales;
       }
       
       const status = endingCash >= settings.safetyThreshold ? 'Safe' : (endingCash >= 0 ? 'Warning' : 'Deficit');
@@ -250,5 +242,86 @@ export class CashFlowService {
 
   async getAllPayments(): Promise<CashFlowPayment[]> {
     return this.paymentRepository.find({ order: { date: 'DESC' } });
+  }
+
+  async resetMonth(month: string): Promise<{ message: string }> {
+    const [year, monthNum] = month.split('-');
+    const startDate = `${year}-${monthNum}-01`;
+    const lastDay = new Date(parseInt(year), parseInt(monthNum), 0).getDate();
+    const endDate = `${year}-${monthNum}-${lastDay.toString().padStart(2, '0')}`;
+
+    await this.paymentRepository
+      .createQueryBuilder()
+      .delete()
+      .where('date >= :startDate AND date <= :endDate', { startDate, endDate })
+      .execute();
+
+    await this.dayRepository
+      .createQueryBuilder()
+      .delete()
+      .where('date >= :startDate AND date <= :endDate', { startDate, endDate })
+      .execute();
+
+    return { message: `تم إعادة تعيين بيانات Cash Flow للشهر ${month} بنجاح` };
+  }
+
+  async exportToExcel(month: string): Promise<Buffer> {
+    const monthData = await this.getMonthData(month);
+    
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Cash Flow');
+
+    // Add title
+    worksheet.mergeCells('A1:H1');
+    worksheet.getCell('A1').value = `Cash Flow Report - ${month}`;
+    worksheet.getCell('A1').font = { size: 16, bold: true };
+    worksheet.getCell('A1').alignment = { horizontal: 'center' };
+
+    // Add headers
+    worksheet.addRow([]);
+    const headerRow = worksheet.addRow([
+      'Date',
+      'Day',
+      'Sales',
+      'Opening',
+      'المدفوعات',
+      'Ending',
+      'Status',
+      'Details'
+    ]);
+    headerRow.font = { bold: true };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFD3D3D3' }
+    };
+
+    // Add data
+    for (const day of monthData) {
+      const dayNumber = new Date(day.date).getDate();
+      const paymentDetails = day.payments && day.payments.length > 0 
+        ? day.payments.map(p => `${p.recipientName}: ${p.amount}${p.description ? ' - ' + p.description : ''}`).join('\n')
+        : '';
+      
+      worksheet.addRow([
+        day.date,
+        dayNumber,
+        day.sales,
+        day.openingCash,
+        day.totalPayments,
+        day.endingCash,
+        day.status,
+        paymentDetails
+      ]);
+    }
+
+    // Auto-fit columns
+    worksheet.columns.forEach(column => {
+      column.width = 15;
+    });
+
+    // Generate buffer
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.from(buffer);
   }
 }

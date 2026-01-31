@@ -4,6 +4,8 @@ import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { Employee } from '../entities/employee.entity';
 import { TimeLog } from '../entities/time-log.entity';
+import { ResourceRequest } from '../entities/resource-request.entity';
+import { Notification } from '../entities/notification.entity';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 
 @Injectable()
@@ -13,6 +15,10 @@ export class EmployeesService {
     private employeeRepository: Repository<Employee>,
     @InjectRepository(TimeLog)
     private timeLogRepository: Repository<TimeLog>,
+    @InjectRepository(ResourceRequest)
+    private resourceRequestRepository: Repository<ResourceRequest>,
+    @InjectRepository(Notification)
+    private notificationRepository: Repository<Notification>,
   ) {}
 
   async create(createEmployeeDto: CreateEmployeeDto) {
@@ -60,16 +66,14 @@ export class EmployeesService {
   }
 
   async remove(id: number) {
-    // Check if employee exists
     const employee = await this.employeeRepository.findOne({ where: { id } });
     if (!employee) {
       throw new NotFoundException('الموظف غير موجود');
     }
 
-    // Delete all time logs for this employee
+    await this.notificationRepository.delete({ employeeId: id });
+    await this.resourceRequestRepository.delete({ employeeId: id });
     await this.timeLogRepository.delete({ employeeId: id });
-    
-    // Delete the employee
     await this.employeeRepository.delete(id);
     
     return { message: 'تم حذف الموظف بنجاح' };

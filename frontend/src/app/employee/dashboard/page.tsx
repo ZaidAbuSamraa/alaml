@@ -26,6 +26,7 @@ export default function EmployeeDashboard() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [currentEarnedSalary, setCurrentEarnedSalary] = useState(0);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -39,14 +40,38 @@ export default function EmployeeDashboard() {
     }
 
     const parsedUser = JSON.parse(userData);
-    setUser(parsedUser);
-    setLoading(false);
+    fetchEmployeeData(parsedUser.id);
     
     fetchActiveSession(parsedUser.id);
     fetchTimeLogs(parsedUser.id);
     fetchTotalEarnings(parsedUser.id);
     fetchMonthlyEarnings(parsedUser.id, selectedYear, selectedMonth);
   }, [router]);
+
+  const fetchEmployeeData = async (employeeId: number) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/employees/${employeeId}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const text = await response.text();
+        if (text) {
+          const data = JSON.parse(text);
+          console.log('Employee data fetched:', data);
+          console.log('hourlyWage value:', data.hourlyWage);
+          setUser(data);
+        }
+        setLoading(false);
+      } else {
+        console.error('Failed to fetch employee data:', response.status);
+        setLoading(false);
+      }
+    } catch (err) {
+      console.error('Error fetching employee data:', err);
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -56,16 +81,24 @@ export default function EmployeeDashboard() {
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (activeSession) {
+    if (activeSession && user) {
       interval = setInterval(() => {
         const now = new Date().getTime();
         const clockIn = new Date(activeSession.clockIn).getTime();
         const elapsed = Math.floor((now - clockIn) / 1000);
         setElapsedTime(elapsed);
+        
+        const hoursWorked = elapsed / 3600;
+        const hourlyWage = user.hourlyWage || 0;
+        const calculatedSalary = hoursWorked * hourlyWage;
+        console.log('Calculation:', { hoursWorked, hourlyWage, calculatedSalary, userHourlyWage: user.hourlyWage });
+        setCurrentEarnedSalary(calculatedSalary);
       }, 1000);
+    } else {
+      setCurrentEarnedSalary(0);
     }
     return () => clearInterval(interval);
-  }, [activeSession]);
+  }, [activeSession, user]);
 
   const fetchActiveSession = async (employeeId: number) => {
     try {
@@ -74,8 +107,11 @@ export default function EmployeeDashboard() {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       if (response.ok) {
-        const data = await response.json();
-        setActiveSession(data);
+        const text = await response.text();
+        if (text) {
+          const data = JSON.parse(text);
+          setActiveSession(data);
+        }
       }
     } catch (err) {
       console.error('Error fetching active session:', err);
@@ -89,8 +125,11 @@ export default function EmployeeDashboard() {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       if (response.ok) {
-        const data = await response.json();
-        setTimeLogs(data);
+        const text = await response.text();
+        if (text) {
+          const data = JSON.parse(text);
+          setTimeLogs(data);
+        }
       }
     } catch (err) {
       console.error('Error fetching time logs:', err);
@@ -272,8 +311,17 @@ export default function EmployeeDashboard() {
           {activeSession ? (
             <div>
               <h2 className="text-2xl font-bold text-primary-400 mb-4">جلسة نشطة</h2>
-              <div className="text-6xl font-bold text-green-400 mb-6">
+              <div className="text-6xl font-bold text-green-400 mb-4">
                 {formatElapsedTime(elapsedTime)}
+              </div>
+              <div className="bg-primary-500/20 border-2 border-primary-500/50 rounded-xl p-4 mb-6">
+                <p className="text-gray-400 text-sm mb-2">الراتب المكتسب حتى الآن</p>
+                <p className="text-3xl font-bold text-primary-300">
+                  {currentEarnedSalary.toFixed(2)} ₪
+                </p>
+                <p className="text-gray-500 text-xs mt-2">
+                  ({(elapsedTime / 3600).toFixed(2)} ساعة × {user?.hourlyWage || 0} ₪/ساعة)
+                </p>
               </div>
               <p className="text-gray-400 mb-6">
                 بدأت في: {new Date(activeSession.clockIn).toLocaleString('ar-EG')}

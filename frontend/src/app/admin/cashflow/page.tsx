@@ -34,7 +34,7 @@ interface Settings {
   safetyThreshold: number;
 }
 
-type ModalType = 'openingCash' | 'sales' | 'payment' | 'editDay' | null;
+type ModalType = 'openingCash' | 'sales' | 'payment' | 'editDay' | 'reset' | 'export' | null;
 
 export default function CashFlowPage() {
   const router = useRouter();
@@ -49,21 +49,51 @@ export default function CashFlowPage() {
   const [selectedDay, setSelectedDay] = useState<DayData | null>(null);
   const [showOnlyWarning, setShowOnlyWarning] = useState(false);
   const [shiftPaymentsMode, setShiftPaymentsMode] = useState(false);
+  const [resetMonth, setResetMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
+  });
+  const [suppliers, setSuppliers] = useState<Array<{id: number; name: string; phone: string}>>([]);
+  const [supplierSearch, setSupplierSearch] = useState('');
+  const [showSupplierDropdown, setShowSupplierDropdown] = useState(false);
+  const [exportMonth, setExportMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
+  });
+
+  const formatDateToDDMMYYYY = (date: Date) => {
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+  const parseDDMMYYYYToISO = (dateStr: string) => {
+    const [day, month, year] = dateStr.split('/');
+    return `${year}-${month}-${day}`;
+  };
 
   const [openingCashForm, setOpeningCashForm] = useState({
     amount: '',
-    date: new Date().toISOString().split('T')[0],
+    date: formatDateToDDMMYYYY(new Date()),
   });
   const [salesForm, setSalesForm] = useState({
     amount: '',
-    date: new Date().toISOString().split('T')[0],
+    date: formatDateToDDMMYYYY(new Date()),
   });
+  const [isDailyPayment, setIsDailyPayment] = useState(false);
   const [paymentForm, setPaymentForm] = useState({
     amount: '',
     recipientName: '',
-    date: new Date().toISOString().split('T')[0],
+    date: formatDateToDDMMYYYY(new Date()),
     description: '',
+    dateFrom: formatDateToDDMMYYYY(new Date()),
+    dateTo: formatDateToDDMMYYYY(new Date()),
   });
+  
+  const filteredSuppliers = suppliers.filter(s => 
+    s.name.toLowerCase().includes(supplierSearch.toLowerCase())
+  );
   const [settingsForm, setSettingsForm] = useState({
     defaultDailySales: '',
     safetyThreshold: '',
@@ -87,6 +117,7 @@ export default function CashFlowPage() {
     setLoading(false);
     fetchSettings();
     fetchMonthData();
+    fetchSuppliers();
   }, [router]);
 
   useEffect(() => {
@@ -94,6 +125,25 @@ export default function CashFlowPage() {
       fetchMonthData();
     }
   }, [selectedMonth]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.supplier-dropdown-container')) {
+        setShowSupplierDropdown(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (activeModal !== 'payment') {
+      setSupplierSearch('');
+      setShowSupplierDropdown(false);
+    }
+  }, [activeModal]);
 
   const fetchSettings = async () => {
     try {
@@ -126,6 +176,21 @@ export default function CashFlowPage() {
       }
     } catch (err) {
       console.error('Error fetching month data:', err);
+    }
+  };
+
+  const fetchSuppliers = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/suppliers`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSuppliers(data);
+      }
+    } catch (err) {
+      console.error('Error fetching suppliers:', err);
     }
   };
 
@@ -164,12 +229,12 @@ export default function CashFlowPage() {
         },
         body: JSON.stringify({
           amount: parseFloat(openingCashForm.amount),
-          date: openingCashForm.date,
+          date: parseDDMMYYYYToISO(openingCashForm.date),
         }),
       });
       if (response.ok) {
         setActiveModal(null);
-        setOpeningCashForm({ amount: '', date: new Date().toISOString().split('T')[0] });
+        setOpeningCashForm({ amount: '', date: formatDateToDDMMYYYY(new Date()) });
         fetchMonthData();
       }
     } catch (err) {
@@ -189,12 +254,12 @@ export default function CashFlowPage() {
         },
         body: JSON.stringify({
           amount: parseFloat(salesForm.amount),
-          date: salesForm.date,
+          date: parseDDMMYYYYToISO(salesForm.date),
         }),
       });
       if (response.ok) {
         setActiveModal(null);
-        setSalesForm({ amount: '', date: new Date().toISOString().split('T')[0] });
+        setSalesForm({ amount: '', date: formatDateToDDMMYYYY(new Date()) });
         fetchMonthData();
       }
     } catch (err) {
@@ -206,26 +271,90 @@ export default function CashFlowPage() {
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/cashflow/payment`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          amount: parseFloat(paymentForm.amount),
-          recipientName: paymentForm.recipientName,
-          date: paymentForm.date,
-          description: paymentForm.description,
-        }),
-      });
-      if (response.ok) {
+      
+      if (isDailyPayment) {
+        // Daily Payment Mode - create payment for each day in range
+        const startDate = new Date(parseDDMMYYYYToISO(paymentForm.dateFrom));
+        const endDate = new Date(parseDDMMYYYYToISO(paymentForm.dateTo));
+        
+        const promises = [];
+        for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
+          const isoDate = date.toISOString().split('T')[0];
+          promises.push(
+            fetch(`${API_URL}/cashflow/payment`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                amount: parseFloat(paymentForm.amount),
+                recipientName: paymentForm.recipientName,
+                date: isoDate,
+                description: paymentForm.description,
+              }),
+            })
+          );
+        }
+        
+        await Promise.all(promises);
         setActiveModal(null);
-        setPaymentForm({ amount: '', recipientName: '', date: new Date().toISOString().split('T')[0], description: '' });
+        setPaymentForm({ 
+          amount: '', 
+          recipientName: '', 
+          date: formatDateToDDMMYYYY(new Date()), 
+          description: '',
+          dateFrom: formatDateToDDMMYYYY(new Date()),
+          dateTo: formatDateToDDMMYYYY(new Date()),
+        });
+        setIsDailyPayment(false);
         fetchMonthData();
+      } else {
+        // Single Payment Mode
+        const response = await fetch(`${API_URL}/cashflow/payment`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            amount: parseFloat(paymentForm.amount),
+            recipientName: paymentForm.recipientName,
+            date: parseDDMMYYYYToISO(paymentForm.date),
+            description: paymentForm.description,
+          }),
+        });
+        if (response.ok) {
+          setActiveModal(null);
+          setPaymentForm({ 
+            amount: '', 
+            recipientName: '', 
+            date: formatDateToDDMMYYYY(new Date()), 
+            description: '',
+            dateFrom: formatDateToDDMMYYYY(new Date()),
+            dateTo: formatDateToDDMMYYYY(new Date()),
+          });
+          fetchMonthData();
+        }
       }
     } catch (err) {
       console.error('Error adding payment:', err);
+    }
+  };
+
+  const handleResetCashflow = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/cashflow/reset/${resetMonth}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (response.ok) {
+        setActiveModal(null);
+        fetchMonthData();
+      }
+    } catch (err) {
+      console.error('Error resetting cashflow:', err);
     }
   };
 
@@ -256,7 +385,6 @@ export default function CashFlowPage() {
   };
 
   const handleDeletePayment = async (paymentId: number) => {
-    if (!confirm('Are you sure you want to delete this payment?')) return;
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(`${API_URL}/cashflow/payment/${paymentId}`, {
@@ -264,10 +392,41 @@ export default function CashFlowPage() {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       if (response.ok) {
+        if (selectedDay) {
+          setSelectedDay({
+            ...selectedDay,
+            payments: selectedDay.payments.filter(p => p.id !== paymentId),
+            totalPayments: selectedDay.totalPayments - (selectedDay.payments.find(p => p.id === paymentId)?.amount || 0)
+          });
+        }
         fetchMonthData();
       }
     } catch (err) {
       console.error('Error deleting payment:', err);
+    }
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/cashflow/export/${exportMonth}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `cashflow-${exportMonth}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        setActiveModal(null);
+      }
+    } catch (err) {
+      console.error('Error exporting Excel:', err);
     }
   };
 
@@ -338,6 +497,17 @@ export default function CashFlowPage() {
                 </button>
               </div>
 
+              {/* Export Button */}
+              <button
+                onClick={() => setActiveModal('export')}
+                className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 px-4 rounded-lg transition font-semibold mb-6 flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                تصدير Excel
+              </button>
+
               {/* Opening Cash Modal */}
               {activeModal === 'openingCash' && (
                 <div className="bg-dark-800 rounded-xl p-4 mb-4 border border-blue-500/30">
@@ -348,6 +518,7 @@ export default function CashFlowPage() {
                       <input
                         type="number"
                         step="0.01"
+                        inputMode="decimal"
                         value={openingCashForm.amount}
                         onChange={(e) => setOpeningCashForm({ ...openingCashForm, amount: e.target.value })}
                         className="w-full px-3 py-2 bg-dark-700 border border-dark-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
@@ -355,11 +526,13 @@ export default function CashFlowPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm text-gray-400 mb-1">Date</label>
+                      <label className="block text-sm text-gray-400 mb-1">Date (DD/MM/YYYY)</label>
                       <input
-                        type="date"
+                        type="text"
+                        placeholder="DD/MM/YYYY"
                         value={openingCashForm.date}
                         onChange={(e) => setOpeningCashForm({ ...openingCashForm, date: e.target.value })}
+                        pattern="\d{2}/\d{2}/\d{4}"
                         className="w-full px-3 py-2 bg-dark-700 border border-dark-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                         required
                       />
@@ -386,6 +559,7 @@ export default function CashFlowPage() {
                       <input
                         type="number"
                         step="0.01"
+                        inputMode="decimal"
                         value={salesForm.amount}
                         onChange={(e) => setSalesForm({ ...salesForm, amount: e.target.value })}
                         className="w-full px-3 py-2 bg-dark-700 border border-dark-600 text-white rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
@@ -393,11 +567,13 @@ export default function CashFlowPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm text-gray-400 mb-1">Date</label>
+                      <label className="block text-sm text-gray-400 mb-1">Date (DD/MM/YYYY)</label>
                       <input
-                        type="date"
+                        type="text"
+                        placeholder="DD/MM/YYYY"
                         value={salesForm.date}
                         onChange={(e) => setSalesForm({ ...salesForm, date: e.target.value })}
+                        pattern="\d{2}/\d{2}/\d{4}"
                         className="w-full px-3 py-2 bg-dark-700 border border-dark-600 text-white rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
                         required
                       />
@@ -419,37 +595,112 @@ export default function CashFlowPage() {
                 <div className="bg-dark-800 rounded-xl p-4 mb-4 border border-orange-500/30">
                   <h3 className="text-lg font-bold text-orange-400 mb-4">Add Payment</h3>
                   <form onSubmit={handlePaymentSubmit} className="space-y-3">
+                    <div className="flex items-center gap-3 mb-3 p-3 bg-dark-700/50 rounded-lg border border-orange-500/20">
+                      <input
+                        type="checkbox"
+                        id="dailyPaymentToggle"
+                        checked={isDailyPayment}
+                        onChange={(e) => setIsDailyPayment(e.target.checked)}
+                        className="w-5 h-5 text-orange-500 bg-dark-700 border-gray-600 rounded focus:ring-orange-500 focus:ring-2"
+                      />
+                      <label htmlFor="dailyPaymentToggle" className="text-orange-400 font-semibold cursor-pointer">
+                        Daily Payment (دفعة يومية)
+                      </label>
+                    </div>
                     <div>
                       <label className="block text-sm text-gray-400 mb-1">Amount</label>
                       <input
                         type="number"
                         step="0.01"
+                        inputMode="decimal"
                         value={paymentForm.amount}
                         onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
                         className="w-full px-3 py-2 bg-dark-700 border border-dark-600 text-white rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
                         required
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm text-gray-400 mb-1">Recipient Name</label>
+                    <div className="relative supplier-dropdown-container">
+                      <label className="block text-sm text-gray-400 mb-1">Recipient Name (اسم المورد)</label>
                       <input
                         type="text"
-                        value={paymentForm.recipientName}
-                        onChange={(e) => setPaymentForm({ ...paymentForm, recipientName: e.target.value })}
+                        value={supplierSearch || paymentForm.recipientName}
+                        onChange={(e) => {
+                          setSupplierSearch(e.target.value);
+                          setPaymentForm({ ...paymentForm, recipientName: e.target.value });
+                          setShowSupplierDropdown(true);
+                        }}
+                        onFocus={() => setShowSupplierDropdown(true)}
+                        placeholder="ابحث عن مورد أو اكتب اسم جديد"
                         className="w-full px-3 py-2 bg-dark-700 border border-dark-600 text-white rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
                         required
                       />
+                      {showSupplierDropdown && filteredSuppliers.length > 0 && (
+                        <div className="absolute z-50 w-full mt-1 bg-dark-800 border-2 border-orange-500/50 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+                          {filteredSuppliers.map((supplier) => (
+                            <div
+                              key={supplier.id}
+                              onClick={() => {
+                                setPaymentForm({ ...paymentForm, recipientName: supplier.name });
+                                setSupplierSearch(supplier.name);
+                                setShowSupplierDropdown(false);
+                              }}
+                              className="px-4 py-3 hover:bg-orange-500/20 cursor-pointer border-b border-dark-700 last:border-b-0 transition"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="text-white font-medium">{supplier.name}</p>
+                                  <p className="text-gray-400 text-sm">{supplier.phone}</p>
+                                </div>
+                                <svg className="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <div>
-                      <label className="block text-sm text-gray-400 mb-1">Date</label>
-                      <input
-                        type="date"
-                        value={paymentForm.date}
-                        onChange={(e) => setPaymentForm({ ...paymentForm, date: e.target.value })}
-                        className="w-full px-3 py-2 bg-dark-700 border border-dark-600 text-white rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
-                        required
-                      />
-                    </div>
+                    {isDailyPayment ? (
+                      <>
+                        <div>
+                          <label className="block text-sm text-gray-400 mb-1">From Date (من تاريخ) - DD/MM/YYYY</label>
+                          <input
+                            type="text"
+                            placeholder="DD/MM/YYYY"
+                            value={paymentForm.dateFrom}
+                            onChange={(e) => setPaymentForm({ ...paymentForm, dateFrom: e.target.value })}
+                            pattern="\d{2}/\d{2}/\d{4}"
+                            className="w-full px-3 py-2 bg-dark-700 border border-dark-600 text-white rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm text-gray-400 mb-1">To Date (إلى تاريخ) - DD/MM/YYYY</label>
+                          <input
+                            type="text"
+                            placeholder="DD/MM/YYYY"
+                            value={paymentForm.dateTo}
+                            onChange={(e) => setPaymentForm({ ...paymentForm, dateTo: e.target.value })}
+                            pattern="\d{2}/\d{2}/\d{4}"
+                            className="w-full px-3 py-2 bg-dark-700 border border-dark-600 text-white rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
+                            required
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <div>
+                        <label className="block text-sm text-gray-400 mb-1">Date (DD/MM/YYYY)</label>
+                        <input
+                          type="text"
+                          placeholder="DD/MM/YYYY"
+                          value={paymentForm.date}
+                          onChange={(e) => setPaymentForm({ ...paymentForm, date: e.target.value })}
+                          pattern="\d{2}/\d{2}/\d{4}"
+                          className="w-full px-3 py-2 bg-dark-700 border border-dark-600 text-white rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
+                          required
+                        />
+                      </div>
+                    )}
                     <div>
                       <label className="block text-sm text-gray-400 mb-1">Description (Optional)</label>
                       <input
@@ -468,6 +719,38 @@ export default function CashFlowPage() {
                       </button>
                     </div>
                   </form>
+                </div>
+              )}
+
+              {/* Export Modal */}
+              {activeModal === 'export' && (
+                <div className="bg-dark-800 rounded-xl p-4 mb-4 border border-purple-500/30">
+                  <h3 className="text-lg font-bold text-purple-400 mb-4">تصدير Excel</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-1">اختر الشهر (YYYY-MM)</label>
+                      <input
+                        type="month"
+                        value={exportMonth}
+                        onChange={(e) => setExportMonth(e.target.value)}
+                        className="w-full px-3 py-2 bg-dark-700 border border-dark-600 text-white rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={handleExportExcel}
+                        className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg transition font-semibold"
+                      >
+                        تصدير
+                      </button>
+                      <button 
+                        onClick={() => setActiveModal(null)}
+                        className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 rounded-lg transition"
+                      >
+                        إلغاء
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -509,6 +792,15 @@ export default function CashFlowPage() {
                     className="w-full bg-primary-500 hover:bg-primary-600 text-dark-950 font-bold py-2 rounded-lg transition"
                   >
                     Save Settings
+                  </button>
+                  <button
+                    onClick={() => setActiveModal('reset')}
+                    className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 rounded-lg transition flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    إعادة تعيين Cash Flow
                   </button>
                 </div>
               </div>
@@ -584,9 +876,21 @@ export default function CashFlowPage() {
                   </thead>
                   <tbody>
                     {filteredData.map((day, index) => {
-                      const previousDayPayments = index > 0 && shiftPaymentsMode && !filteredData[index - 1].deductSameDay 
-                        ? filteredData[index - 1].totalPayments 
+                      // حساب المدفوعات التي ستظهر في عمود "المدفوعات"
+                      // عندما يكون shift mode مفعل، نعرض مدفوعات اليوم التالي
+                      const nextDayTotalPayments = index < filteredData.length - 1 && !day.deductSameDay 
+                        ? filteredData[index + 1].totalPayments 
                         : 0;
+                      
+                      // حساب تفاصيل المدفوعات التي ستظهر في عمود Details
+                      // عندما يكون shift mode مفعل، نعرض دفعات اليوم التالي
+                      const nextDayPayments = index < filteredData.length - 1 && !day.deductSameDay 
+                        ? filteredData[index + 1].payments 
+                        : [];
+                      
+                      const displayPayments = shiftPaymentsMode && !day.deductSameDay 
+                        ? nextDayPayments 
+                        : day.payments;
                       
                       return (
                         <tr 
@@ -601,8 +905,8 @@ export default function CashFlowPage() {
                           <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-yellow-400 font-medium text-center">{Math.round(day.sales).toLocaleString()}</td>
                           <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-blue-400 font-medium text-center">{Math.round(day.openingCash).toLocaleString()}</td>
                           <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-orange-400 font-medium text-center">
-                            {shiftPaymentsMode 
-                              ? (previousDayPayments > 0 ? Math.round(previousDayPayments).toLocaleString() : '0')
+                            {shiftPaymentsMode && !day.deductSameDay
+                              ? (nextDayTotalPayments > 0 ? Math.round(nextDayTotalPayments).toLocaleString() : '0')
                               : (day.totalPayments > 0 ? Math.round(day.totalPayments).toLocaleString() : '0')
                             }
                           </td>
@@ -615,9 +919,9 @@ export default function CashFlowPage() {
                             </span>
                           </td>
                         <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-gray-300 max-w-xs text-center">
-                          {day.payments.length > 0 ? (
+                          {displayPayments.length > 0 ? (
                             <div className="space-y-1">
-                              {day.payments.map((p) => (
+                              {displayPayments.map((p) => (
                                 <div key={p.id} className="flex items-center gap-2">
                                   <span className="text-orange-300">{p.recipientName}</span>
                                   <span className="text-gray-500">—</span>
@@ -694,14 +998,14 @@ export default function CashFlowPage() {
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-gray-300 font-semibold">وضع المدفوعات (Payment Mode)</span>
                   <span className={`px-4 py-2 rounded-lg font-bold text-sm ${!selectedDay.deductSameDay ? 'bg-orange-500/30 text-orange-300 border-2 border-orange-500/50' : 'bg-green-500/30 text-green-300 border-2 border-green-500/50'}`}>
-                    {!selectedDay.deductSameDay ? '🔄 منقول لليوم التالي' : '✓ نفس اليوم'}
+                    {!selectedDay.deductSameDay ? '🔄 منقول لليوم السابق' : '✓ نفس اليوم'}
                   </span>
                 </div>
                 <div className="space-y-2">
                   <p className="text-sm text-gray-400">
                     {selectedDay.deductSameDay 
                       ? '• المدفوعات تُخصم من رصيد نهاية اليوم الحالي' 
-                      : '• المدفوعات تظهر في عمود "مدفوعات الغد" وتُخصم من اليوم التالي'}
+                      : '• المدفوعات تُخصم من رصيد نهاية اليوم السابق'}
                   </p>
                   <div className="bg-primary-500/10 border border-primary-500/30 rounded-lg p-3 mt-2">
                     <p className="text-xs text-primary-300 font-medium">
@@ -741,6 +1045,70 @@ export default function CashFlowPage() {
               <div className={`p-4 rounded-xl border ${getStatusColor(selectedDay.status)}`}>
                 <p className="text-center font-bold">Status: {selectedDay.status}</p>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Cashflow Modal */}
+      {activeModal === 'reset' && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setActiveModal(null)}>
+          <div className="bg-dark-900 rounded-2xl p-8 max-w-md w-full mx-4 border-2 border-red-500/50" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold text-red-400 flex items-center gap-2">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                إعادة تعيين Cash Flow
+              </h3>
+              <button onClick={() => setActiveModal(null)} className="text-gray-400 hover:text-white">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="bg-red-900/20 border-2 border-red-500/50 rounded-xl p-4 mb-6">
+              <div className="flex items-start gap-3">
+                <svg className="w-6 h-6 text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <div>
+                  <h4 className="text-red-300 font-bold mb-1">تحذير!</h4>
+                  <p className="text-red-200 text-sm">
+                    سيتم حذف جميع بيانات Cash Flow للشهر المحدد بشكل نهائي.
+                    <strong className="block mt-1">⚠️ هذا الإجراء لا يمكن التراجع عنه!</strong>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm text-gray-400 mb-2">اختر الشهر المراد إعادة تعيينه</label>
+              <input
+                type="month"
+                value={resetMonth}
+                onChange={(e) => setResetMonth(e.target.value)}
+                className="w-full px-4 py-3 bg-dark-800 border-2 border-dark-600 text-white rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setActiveModal(null)}
+                className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-xl transition"
+              >
+                إلغاء
+              </button>
+              <button
+                onClick={handleResetCashflow}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                تأكيد الحذف
+              </button>
             </div>
           </div>
         </div>

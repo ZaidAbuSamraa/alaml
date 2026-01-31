@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { ResourceRequest, RequestStatus } from '../entities/resource-request.entity';
 import { Notification, NotificationType } from '../entities/notification.entity';
 import { CreateResourceRequestDto } from './dto/create-resource-request.dto';
+import { WhatsAppService } from '../whatsapp/whatsapp.service';
 
 @Injectable()
 export class ResourceRequestsService {
@@ -12,6 +13,7 @@ export class ResourceRequestsService {
     private resourceRequestRepository: Repository<ResourceRequest>,
     @InjectRepository(Notification)
     private notificationRepository: Repository<Notification>,
+    private whatsAppService: WhatsAppService,
   ) {}
 
   async create(createResourceRequestDto: CreateResourceRequestDto): Promise<ResourceRequest> {
@@ -26,6 +28,8 @@ export class ResourceRequestsService {
       isRead: false,
     });
     await this.notificationRepository.save(notification);
+    
+    await this.whatsAppService.sendNotificationViaAPI(notification.message);
 
     return savedRequest;
   }

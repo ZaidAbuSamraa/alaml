@@ -9,7 +9,7 @@ import * as path from 'path';
 import Groq from 'groq-sdk';
 import FormData from 'form-data';
 
-const groq = new Groq({ apiKey: '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' });
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY || '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' });
 
 export interface ExtractedPaymentData {
   supplierName: string;

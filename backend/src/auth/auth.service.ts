@@ -76,4 +76,37 @@ export class AuthService {
     const employee = await this.employeeRepository.findOne({ where: { id: userId } });
     return employee;
   }
+
+  async updateProfile(userId: number, updateData: { name?: string; currentPassword?: string; newPassword?: string }) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    
+    if (!user) {
+      throw new UnauthorizedException('المستخدم غير موجود');
+    }
+
+    // Update name if provided
+    if (updateData.name) {
+      user.username = updateData.name;
+    }
+
+    // Update password if provided
+    if (updateData.currentPassword && updateData.newPassword) {
+      const isPasswordValid = await bcrypt.compare(updateData.currentPassword, user.password);
+      if (!isPasswordValid) {
+        throw new UnauthorizedException('كلمة السر الحالية غير صحيحة');
+      }
+      user.password = await bcrypt.hash(updateData.newPassword, 10);
+    }
+
+    await this.userRepository.save(user);
+
+    return {
+      message: 'تم تحديث الملف الشخصي بنجاح',
+      user: {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+      },
+    };
+  }
 }

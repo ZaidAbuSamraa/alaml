@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { API_URL } from '@/lib/api';
+import VoiceRecorder from '@/components/VoiceRecorder';
 
 interface Supplier {
   id: number;
@@ -49,6 +50,14 @@ export default function AdminDashboard() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const notificationsRef = useRef<HTMLDivElement>(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    name: '',
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -231,6 +240,63 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (profileForm.newPassword && profileForm.newPassword !== profileForm.confirmPassword) {
+      alert('كلمة السر الجديدة غير متطابقة');
+      return;
+    }
+
+    try {
+      const updateData: any = {
+        userId: user.id,
+      };
+      
+      if (profileForm.name) {
+        updateData.name = profileForm.name;
+      }
+      
+      if (profileForm.currentPassword && profileForm.newPassword) {
+        updateData.currentPassword = profileForm.currentPassword;
+        updateData.newPassword = profileForm.newPassword;
+      }
+
+      const response = await fetch(`${API_URL}/auth/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        alert('تم تحديث الملف الشخصي بنجاح');
+        
+        // Update localStorage
+        const userData = JSON.parse(localStorage.getItem('user') || '{}');
+        userData.username = data.user.username;
+        localStorage.setItem('user', JSON.stringify(userData));
+        setUser(userData);
+        
+        setShowProfileModal(false);
+        setProfileForm({
+          name: '',
+          currentPassword: '',
+          newPassword: '',
+          confirmPassword: '',
+        });
+      } else {
+        const error = await response.json();
+        alert(error.message || 'حدث خطأ أثناء التحديث');
+      }
+    } catch (err) {
+      console.error('Error updating profile:', err);
+      alert('حدث خطأ أثناء التحديث');
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -290,7 +356,24 @@ export default function AdminDashboard() {
                   </div>
                 )}
               </div>
-              <span className="text-gray-300">مرحباً، abood</span>
+              <button
+                onClick={() => setShowVoiceRecorder(true)}
+                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-lg"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
+                تسجيل المعلومات صوتياً
+              </button>
+              <button
+                onClick={() => setShowProfileModal(true)}
+                className="text-gray-300 hover:text-primary-400 transition flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                <span>مرحباً، {user?.username || 'Admin'}</span>
+              </button>
               <button
                 onClick={handleLogout}
                 className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition"
@@ -526,6 +609,101 @@ export default function AdminDashboard() {
           </Link>
         </div>
       </main>
+
+      {/* Profile Modal */}
+      {showProfileModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-dark-900 rounded-2xl p-8 max-w-md w-full mx-4 border border-primary-500/30">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-primary-400">الملف الشخصي</h2>
+              <button
+                onClick={() => setShowProfileModal(false)}
+                className="text-gray-400 hover:text-white transition"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateProfile} className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">الاسم الجديد (اختياري)</label>
+                <input
+                  type="text"
+                  value={profileForm.name}
+                  onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+                  placeholder={user?.username}
+                  className="w-full px-4 py-3 bg-dark-800 border border-dark-600 text-white rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                />
+              </div>
+
+              <div className="border-t border-dark-700 pt-4">
+                <h3 className="text-lg font-semibold text-gray-300 mb-4">تغيير كلمة السر</h3>
+                
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">كلمة السر الحالية</label>
+                    <input
+                      type="password"
+                      value={profileForm.currentPassword}
+                      onChange={(e) => setProfileForm({ ...profileForm, currentPassword: e.target.value })}
+                      className="w-full px-4 py-3 bg-dark-800 border border-dark-600 text-white rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">كلمة السر الجديدة</label>
+                    <input
+                      type="password"
+                      value={profileForm.newPassword}
+                      onChange={(e) => setProfileForm({ ...profileForm, newPassword: e.target.value })}
+                      className="w-full px-4 py-3 bg-dark-800 border border-dark-600 text-white rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">تأكيد كلمة السر الجديدة</label>
+                    <input
+                      type="password"
+                      value={profileForm.confirmPassword}
+                      onChange={(e) => setProfileForm({ ...profileForm, confirmPassword: e.target.value })}
+                      className="w-full px-4 py-3 bg-dark-800 border border-dark-600 text-white rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="submit"
+                  className="flex-1 bg-primary-500 hover:bg-primary-600 text-dark-950 font-bold py-3 rounded-lg transition"
+                >
+                  حفظ التغييرات
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowProfileModal(false)}
+                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Voice Recorder Modal */}
+      {showVoiceRecorder && (
+        <VoiceRecorder
+          onClose={() => setShowVoiceRecorder(false)}
+          onSuccess={() => {
+            fetchAnalytics();
+            fetchSales();
+          }}
+        />
+      )}
     </div>
   );
 }

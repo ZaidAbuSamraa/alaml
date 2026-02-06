@@ -144,8 +144,11 @@ export class TimeLogsService {
   async getEmployeeTotalEarnings(employeeId: number): Promise<number> {
     const logs = await this.timeLogRepository.find({
       where: { employeeId, status: 'completed' },
+      relations: ['employee'],
     });
-    return logs.reduce((sum, log) => sum + Number(log.earnedSalary || 0), 0);
+    const salaryTotal = logs.reduce((sum, log) => sum + Number(log.earnedSalary || 0), 0);
+    const bonus = logs.length > 0 && logs[0].employee ? Number(logs[0].employee.bonus || 0) : 0;
+    return salaryTotal + bonus;
   }
 
   async getEmployeeMonthlyEarnings(employeeId: number, year: number, month: number): Promise<number> {
@@ -154,12 +157,82 @@ export class TimeLogsService {
 
     const logs = await this.timeLogRepository
       .createQueryBuilder('timeLog')
+      .leftJoinAndSelect('timeLog.employee', 'employee')
       .where('timeLog.employeeId = :employeeId', { employeeId })
       .andWhere('timeLog.status = :status', { status: 'completed' })
       .andWhere('timeLog.clockIn >= :startDate', { startDate })
       .andWhere('timeLog.clockIn <= :endDate', { endDate })
       .getMany();
 
-    return logs.reduce((sum, log) => sum + Number(log.earnedSalary || 0), 0);
+    const salaryTotal = logs.reduce((sum, log) => sum + Number(log.earnedSalary || 0), 0);
+    const bonus = logs.length > 0 && logs[0].employee ? Number(logs[0].employee.bonus || 0) : 0;
+    return salaryTotal + bonus;
+  }
+
+  async deleteTimeLog(id: number): Promise<void> {
+    const timeLog = await this.timeLogRepository.findOne({ where: { id } });
+    if (!timeLog) {
+      throw new HttpException('سجل الحضور غير موجود', HttpStatus.NOT_FOUND);
+    }
+    await this.timeLogRepository.delete(id);
+  }
+
+  async updateTimeLog(id: number, updateData: { clockIn?: string; clockOut?: string }): Promise<TimeLog> {
+    const timeLog = await this.timeLogRepository.findOne({ 
+      where: { id },
+      relations: ['employee']
+    });
+    
+    if (!timeLog) {
+      throw new HttpException('سجل الحضور غير موجود', HttpStatus.NOT_FOUND);
+    }
+
+    if (updateData.clockIn) {
+      timeLog.clockIn = new Date(updateData.clockIn);
+    }
+
+    if (updateData.clockOut) {
+      timeLog.clockOut = new Date(updateData.clockOut);
+      timeLog.status = 'completed';
+    }
+
+    // Recalculate hours and salary if both times are set
+    if (timeLog.clockIn && timeLog.clockOut) {
+      const hoursWorked = (timeLog.clockOut.getTime() - timeLog.clockIn.getTime()) / (1000 * 60 * 60);
+      const hourlyWage = Number(timeLog.employee.hourlyWage || 0);
+      const earnedSalary = hoursWorked * hourlyWage;
+      
+      timeLog.hoursWorked = Number(hoursWorked.toFixed(2));
+      timeLog.earnedSalary = Number(earnedSalary.toFixed(2));
+    }
+
+    return await this.timeLogRepository.save(timeLog);
+  }
+
+  async forceStopTimeLog(id: number): Promise<TimeLog> {
+    const timeLog = await this.timeLogRepository.findOne({ 
+      where: { id },
+      relations: ['employee']
+    });
+    
+    if (!timeLog) {
+      throw new HttpException('سجل الحضور غير موجود', HttpStatus.NOT_FOUND);
+    }
+
+    if (timeLog.status !== 'active') {
+      throw new HttpException('الجلسة ليست نشطة', HttpStatus.BAD_REQUEST);
+    }
+
+    const clockOut = new Date();
+    const hoursWorked = (clockOut.getTime() - timeLog.clockIn.getTime()) / (1000 * 60 * 60);
+    const hourlyWage = Number(timeLog.employee.hourlyWage || 0);
+    const earnedSalary = hoursWorked * hourlyWage;
+
+    timeLog.clockOut = clockOut;
+    timeLog.hoursWorked = Number(hoursWorked.toFixed(2));
+    timeLog.earnedSalary = Number(earnedSalary.toFixed(2));
+    timeLog.status = 'completed';
+
+    return await this.timeLogRepository.save(timeLog);
   }
 }

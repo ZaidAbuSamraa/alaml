@@ -1,13 +1,26 @@
-import { IsNotEmpty, IsString, IsDateString, IsNumber } from 'class-validator';
+import { IsNotEmpty, IsString, IsDateString, IsNumber, IsArray, IsOptional, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+
+export class RequestItemDto {
+  @IsNotEmpty()
+  @IsString()
+  content: string;
+}
 
 export class CreateResourceRequestDto {
   @IsNotEmpty()
   @IsString()
   requestName: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  description: string;
+  description?: string;
+
+  @IsNotEmpty()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => RequestItemDto)
+  items: RequestItemDto[];
 
   @IsNotEmpty()
   @IsDateString()

@@ -39,6 +39,15 @@ export class ResourceRequestsController {
     return this.resourceRequestsService.updateStatus(+id, body.status, body.adminNotes);
   }
 
+  @Put(':requestId/items/:itemId/status')
+  updateItemStatus(
+    @Param('requestId') requestId: string,
+    @Param('itemId') itemId: string,
+    @Body() body: { status: string; adminNotes?: string }
+  ) {
+    return this.resourceRequestsService.updateItemStatus(+itemId, body.status as any, body.adminNotes);
+  }
+
   @Delete(':id')
   delete(@Param('id') id: string) {
     return this.resourceRequestsService.delete(+id);

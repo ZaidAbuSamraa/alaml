@@ -6,13 +6,22 @@ import Link from 'next/link';
 import { API_URL } from '@/lib/api';
 import { formatDate } from '@/lib/formatters';
 
+interface RequestItem {
+  id: number;
+  content: string;
+  status: 'pending' | 'approved' | 'rejected';
+  adminNotes?: string;
+  orderIndex: number;
+}
+
 interface ResourceRequest {
   id: number;
   requestName: string;
-  description: string;
+  description?: string;
   requestDate: string;
   status: 'pending' | 'approved' | 'rejected';
   adminNotes?: string;
+  items?: RequestItem[];
   createdAt: string;
 }
 
@@ -23,9 +32,9 @@ export default function EmployeeRequestsPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [formData, setFormData] = useState({
     requestName: '',
-    description: '',
     requestDate: new Date().toISOString().split('T')[0],
   });
+  const [items, setItems] = useState<string[]>(['']);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -80,6 +89,7 @@ export default function EmployeeRequestsPage() {
         },
         body: JSON.stringify({
           ...formData,
+          items: items.filter(item => item.trim()).map(content => ({ content })),
           employeeId: user.id,
         }),
       });
@@ -93,9 +103,9 @@ export default function EmployeeRequestsPage() {
       setSuccess('تم إضافة الطلب بنجاح');
       setFormData({
         requestName: '',
-        description: '',
         requestDate: new Date().toISOString().split('T')[0],
       });
+      setItems(['']);
       setShowAddForm(false);
       fetchRequests();
     } catch (err: any) {
@@ -194,15 +204,48 @@ export default function EmployeeRequestsPage() {
 
               <div>
                 <label className="block text-sm font-medium text-primary-400 mb-2">
-                  الوصف
+                  عناصر الطلب
                 </label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full px-4 py-3 bg-dark-800 border border-dark-700 text-white rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
-                  rows={4}
-                  required
-                />
+                <div className="space-y-3">
+                  {items.map((item, index) => (
+                    <div key={index} className="flex gap-2 items-start">
+                      <span className="text-primary-400 mt-3">•</span>
+                      <input
+                        type="text"
+                        value={item}
+                        onChange={(e) => {
+                          const newItems = [...items];
+                          newItems[index] = e.target.value;
+                          setItems(newItems);
+                        }}
+                        placeholder={`العنصر ${index + 1}`}
+                        className="flex-1 px-4 py-3 bg-dark-800 border border-dark-700 text-white rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                        required
+                      />
+                      {items.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setItems(items.filter((_, i) => i !== index))}
+                          className="px-3 py-3 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg transition"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setItems([...items, ''])}
+                    className="w-full px-4 py-3 bg-primary-600/20 hover:bg-primary-600/30 text-primary-400 rounded-lg transition flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    إضافة عنصر جديد
+                  </button>
+                </div>
               </div>
 
               <div className="flex gap-3">

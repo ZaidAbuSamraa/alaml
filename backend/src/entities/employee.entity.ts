@@ -17,6 +17,9 @@ export class Employee {
   @Column('decimal', { precision: 10, scale: 2, default: 0 })
   hourlyWage: number;
 
+  @Column('decimal', { precision: 10, scale: 2, default: 0 })
+  bonus: number;
+
   @Column({ nullable: true })
   specialty: string;
 

@@ -152,12 +152,15 @@ export default function CashFlowPage() {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       if (response.ok) {
-        const data = await response.json();
-        setSettings(data);
-        setSettingsForm({
-          defaultDailySales: data.defaultDailySales.toString(),
-          safetyThreshold: data.safetyThreshold.toString(),
-        });
+        const text = await response.text();
+        if (text) {
+          const data = JSON.parse(text);
+          setSettings(data);
+          setSettingsForm({
+            defaultDailySales: data.defaultDailySales.toString(),
+            safetyThreshold: data.safetyThreshold.toString(),
+          });
+        }
       }
     } catch (err) {
       console.error('Error fetching settings:', err);
@@ -171,8 +174,11 @@ export default function CashFlowPage() {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       if (response.ok) {
-        const data = await response.json();
-        setMonthData(data);
+        const text = await response.text();
+        if (text) {
+          const data = JSON.parse(text);
+          setMonthData(data);
+        }
       }
     } catch (err) {
       console.error('Error fetching month data:', err);
@@ -186,8 +192,11 @@ export default function CashFlowPage() {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       if (response.ok) {
-        const data = await response.json();
-        setSuppliers(data);
+        const text = await response.text();
+        if (text) {
+          const data = JSON.parse(text);
+          setSuppliers(data);
+        }
       }
     } catch (err) {
       console.error('Error fetching suppliers:', err);

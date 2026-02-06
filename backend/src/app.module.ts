@@ -24,11 +24,13 @@ import { Sale } from './entities/sale.entity';
 import { TimeLog } from './entities/time-log.entity';
 import { Notification } from './entities/notification.entity';
 import { ResourceRequest } from './entities/resource-request.entity';
+import { RequestItem } from './entities/request-item.entity';
 import { CashFlowModule } from './cashflow/cashflow.module';
 import { CashFlowDay } from './entities/cashflow-day.entity';
 import { CashFlowPayment } from './entities/cashflow-payment.entity';
 import { CashFlowSettings } from './entities/cashflow-settings.entity';
 import { SupplierCashflowNote } from './entities/supplier-cashflow-note.entity';
+import { VoiceModule } from './voice/voice.module';
 
 @Module({
   imports: [
@@ -42,7 +44,7 @@ import { SupplierCashflowNote } from './entities/supplier-cashflow-note.entity';
       username: process.env.DB_USERNAME || 'postgres',
       password: process.env.DB_PASSWORD || '',
       database: process.env.DB_DATABASE || 'alaml',
-      entities: [User, Employee, Supplier, Invoice, Payment, Transaction, Cash, Sale, TimeLog, Notification, ResourceRequest, CashFlowDay, CashFlowPayment, CashFlowSettings, SupplierCashflowNote],
+      entities: [User, Employee, Supplier, Invoice, Payment, Transaction, Cash, Sale, TimeLog, Notification, ResourceRequest, RequestItem, CashFlowDay, CashFlowPayment, CashFlowSettings, SupplierCashflowNote],
       synchronize: true,
     }),
     AuthModule,
@@ -56,6 +58,7 @@ import { SupplierCashflowNote } from './entities/supplier-cashflow-note.entity';
     ResourceRequestsModule,
     NotificationsModule,
     CashFlowModule,
+    VoiceModule,
   ],
   controllers: [AppController],
   providers: [AppService],

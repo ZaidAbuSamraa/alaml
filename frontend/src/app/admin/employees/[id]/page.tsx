@@ -11,6 +11,7 @@ interface Employee {
   name: string;
   username: string;
   hourlyWage: number;
+  bonus: number;
   createdAt: string;
 }
 
@@ -53,6 +54,21 @@ export default function EmployeeTimeLogPage() {
   const [totalHours, setTotalHours] = useState(0);
   const [loading, setLoading] = useState(true);
   const [activeSessionTimer, setActiveSessionTimer] = useState<{[key: number]: {elapsed: number, salary: number}}>({})
+  const [showBonusModal, setShowBonusModal] = useState(false);
+  const [bonusAmount, setBonusAmount] = useState('');
+  const [editingLog, setEditingLog] = useState<TimeLog | null>(null);
+  const [editClockIn, setEditClockIn] = useState('');
+  const [editClockOut, setEditClockOut] = useState('');
+  const [notification, setNotification] = useState<{show: boolean; message: string; type: 'success' | 'error'}>({
+    show: false,
+    message: '',
+    type: 'success'
+  });
+
+  const showNotification = (message: string, type: 'success' | 'error') => {
+    setNotification({ show: true, message, type });
+    setTimeout(() => setNotification({ show: false, message: '', type: 'success' }), 3000);
+  };
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -179,6 +195,116 @@ export default function EmployeeTimeLogPage() {
     }
   };
 
+  const handleUpdateBonus = async () => {
+    try {
+      const response = await fetch(`${API_URL}/employees/${employeeId}/bonus`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bonus: Number(bonusAmount) }),
+      });
+      
+      if (response.ok) {
+        showNotification('تم تحديث المكافأة بنجاح', 'success');
+        setShowBonusModal(false);
+        setBonusAmount('');
+        fetchEmployeeData();
+      } else {
+        showNotification('حدث خطأ أثناء تحديث المكافأة', 'error');
+      }
+    } catch (err) {
+      console.error('Error updating bonus:', err);
+      showNotification('حدث خطأ أثناء تحديث المكافأة', 'error');
+    }
+  };
+
+  const [confirmDialog, setConfirmDialog] = useState<{show: boolean; message: string; onConfirm: () => void}>({
+    show: false,
+    message: '',
+    onConfirm: () => {}
+  });
+
+  const handleDeleteTimeLog = async (id: number) => {
+    setConfirmDialog({
+      show: true,
+      message: 'هل أنت متأكد من حذف هذا السجل؟',
+      onConfirm: async () => {
+        try {
+          const response = await fetch(`${API_URL}/time-logs/${id}`, {
+            method: 'DELETE',
+          });
+          
+          if (response.ok) {
+            showNotification('تم حذف السجل بنجاح', 'success');
+            fetchEmployeeData();
+          } else {
+            showNotification('حدث خطأ أثناء حذف السجل', 'error');
+          }
+        } catch (err) {
+          console.error('Error deleting time log:', err);
+          showNotification('حدث خطأ أثناء حذف السجل', 'error');
+        }
+        setConfirmDialog({ show: false, message: '', onConfirm: () => {} });
+      }
+    });
+  };
+
+  const handleEditTimeLog = (log: TimeLog) => {
+    setEditingLog(log);
+    setEditClockIn(new Date(log.clockIn).toISOString().slice(0, 16));
+    setEditClockOut(log.clockOut ? new Date(log.clockOut).toISOString().slice(0, 16) : '');
+  };
+
+  const handleSaveEditTimeLog = async () => {
+    if (!editingLog) return;
+    
+    try {
+      const response = await fetch(`${API_URL}/time-logs/${editingLog.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clockIn: editClockIn,
+          clockOut: editClockOut || undefined,
+        }),
+      });
+      
+      if (response.ok) {
+        showNotification('تم تحديث السجل بنجاح', 'success');
+        setEditingLog(null);
+        fetchEmployeeData();
+      } else {
+        showNotification('حدث خطأ أثناء تحديث السجل', 'error');
+      }
+    } catch (err) {
+      console.error('Error updating time log:', err);
+      showNotification('حدث خطأ أثناء تحديث السجل', 'error');
+    }
+  };
+
+  const handleForceStopTimeLog = async (id: number) => {
+    setConfirmDialog({
+      show: true,
+      message: 'هل أنت متأكد من إيقاف هذه الجلسة؟',
+      onConfirm: async () => {
+        try {
+          const response = await fetch(`${API_URL}/time-logs/force-stop/${id}`, {
+            method: 'POST',
+          });
+          
+          if (response.ok) {
+            showNotification('تم إيقاف الجلسة بنجاح', 'success');
+            fetchEmployeeData();
+          } else {
+            showNotification('حدث خطأ أثناء إيقاف الجلسة', 'error');
+          }
+        } catch (err) {
+          console.error('Error stopping time log:', err);
+          showNotification('حدث خطأ أثناء إيقاف الجلسة', 'error');
+        }
+        setConfirmDialog({ show: false, message: '', onConfirm: () => {} });
+      }
+    });
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-dark-950 flex items-center justify-center">
@@ -206,7 +332,19 @@ export default function EmployeeTimeLogPage() {
         {/* Employee Info Card */}
         {employee && (
           <div className="bg-dark-900/80 backdrop-blur-xl p-6 rounded-2xl border-2 border-primary-500/30 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="flex justify-between items-start mb-4">
+              <h2 className="text-xl font-bold text-primary-400">معلومات الموظف</h2>
+              <button
+                onClick={() => setShowBonusModal(true)}
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                إدارة المكافأة
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
               <div>
                 <p className="text-gray-400 text-sm mb-1">اسم الموظف</p>
                 <p className="text-white text-xl font-bold">{employee.name}</p>
@@ -218,6 +356,12 @@ export default function EmployeeTimeLogPage() {
               <div>
                 <p className="text-gray-400 text-sm mb-1">الراتب في الساعة</p>
                 <p className="text-primary-400 text-xl font-bold">{employee.hourlyWage}</p>
+              </div>
+              <div>
+                <p className="text-gray-400 text-sm mb-1">المكافأة/الخصم</p>
+                <p className={`text-xl font-bold ${employee.bonus >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {employee.bonus >= 0 ? '+' : ''}{employee.bonus}
+                </p>
               </div>
               <div>
                 <p className="text-gray-400 text-sm mb-1">تاريخ التعيين</p>
@@ -339,12 +483,13 @@ export default function EmployeeTimeLogPage() {
                   <th className="px-6 py-4 text-right text-sm font-bold text-primary-400">المدة</th>
                   <th className="px-6 py-4 text-right text-sm font-bold text-primary-400">الراتب المكتسب</th>
                   <th className="px-6 py-4 text-right text-sm font-bold text-primary-400">الحالة</th>
+                  <th className="px-6 py-4 text-right text-sm font-bold text-primary-400">الإجراءات</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-dark-800">
                 {filteredTimeLogs.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-8 text-center text-gray-400">
+                    <td colSpan={8} className="px-6 py-8 text-center text-gray-400">
                       {dateFilter ? 'لا يوجد سجل حضور في هذا التاريخ' : 'لا يوجد سجل حضور'}
                     </td>
                   </tr>
@@ -387,6 +532,40 @@ export default function EmployeeTimeLogPage() {
                           </span>
                         )}
                       </td>
+                      <td className="px-6 py-4">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleEditTimeLog(log)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg transition"
+                            title="تعديل"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                          {log.status === 'active' && (
+                            <button
+                              onClick={() => handleForceStopTimeLog(log.id)}
+                              className="bg-orange-600 hover:bg-orange-700 text-white p-2 rounded-lg transition"
+                              title="إيقاف"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                              </svg>
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteTimeLog(log.id)}
+                            className="bg-red-600 hover:bg-red-700 text-white p-2 rounded-lg transition"
+                            title="حذف"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -394,6 +573,169 @@ export default function EmployeeTimeLogPage() {
             </table>
           </div>
         </div>
+
+        {/* Bonus Modal */}
+        {showBonusModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-dark-900 rounded-2xl p-8 max-w-md w-full mx-4 border border-primary-500/30">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-primary-400">إدارة المكافأة</h2>
+                <button
+                  onClick={() => setShowBonusModal(false)}
+                  className="text-gray-400 hover:text-white transition"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="mb-6">
+                <label className="block text-sm text-gray-400 mb-2">المكافأة (يمكن أن تكون موجبة أو سالبة)</label>
+                <input
+                  type="number"
+                  value={bonusAmount}
+                  onChange={(e) => setBonusAmount(e.target.value)}
+                  placeholder="أدخل المبلغ"
+                  className="w-full px-4 py-3 bg-dark-800 border border-dark-600 text-white rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                />
+                <div className="mt-3 p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+                  <p className="text-xs text-blue-300 mb-1">
+                    💡 <strong>ملاحظة:</strong> المكافآت تتراكم
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    • المبلغ الموجب يُضاف إلى المكافأة الحالية ({employee?.bonus || 0})
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    • المبلغ السالب يُخصم من المكافأة الحالية
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    • المكافأة تُضاف إلى إجمالي الراتب
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleUpdateBonus}
+                  className="flex-1 bg-primary-500 hover:bg-primary-600 text-dark-950 font-bold py-3 rounded-lg transition"
+                >
+                  حفظ
+                </button>
+                <button
+                  onClick={() => setShowBonusModal(false)}
+                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Time Log Modal */}
+        {editingLog && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-dark-900 rounded-2xl p-8 max-w-md w-full mx-4 border border-primary-500/30">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-primary-400">تعديل سجل الحضور</h2>
+                <button
+                  onClick={() => setEditingLog(null)}
+                  className="text-gray-400 hover:text-white transition"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">وقت الدخول</label>
+                  <input
+                    type="datetime-local"
+                    value={editClockIn}
+                    onChange={(e) => setEditClockIn(e.target.value)}
+                    className="w-full px-4 py-3 bg-dark-800 border border-dark-600 text-white rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">وقت الخروج (اختياري)</label>
+                  <input
+                    type="datetime-local"
+                    value={editClockOut}
+                    onChange={(e) => setEditClockOut(e.target.value)}
+                    className="w-full px-4 py-3 bg-dark-800 border border-dark-600 text-white rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={handleSaveEditTimeLog}
+                  className="flex-1 bg-primary-500 hover:bg-primary-600 text-dark-950 font-bold py-3 rounded-lg transition"
+                >
+                  حفظ التعديلات
+                </button>
+                <button
+                  onClick={() => setEditingLog(null)}
+                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Confirmation Dialog */}
+        {confirmDialog.show && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-dark-900 rounded-2xl p-8 max-w-md w-full mx-4 border border-primary-500/30 shadow-2xl">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-12 h-12 bg-yellow-500/20 rounded-full flex items-center justify-center">
+                  <svg className="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <h2 className="text-xl font-bold text-white">تأكيد العملية</h2>
+              </div>
+              <p className="text-gray-300 mb-6 text-lg">{confirmDialog.message}</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={confirmDialog.onConfirm}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-lg transition"
+                >
+                  تأكيد
+                </button>
+                <button
+                  onClick={() => setConfirmDialog({ show: false, message: '', onConfirm: () => {} })}
+                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Notification Toast */}
+        {notification.show && (
+          <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-slide-down">
+            <div className={`${
+              notification.type === 'success' 
+                ? 'bg-green-600 border-green-500' 
+                : 'bg-red-600 border-red-500'
+            } border-2 rounded-2xl p-4 shadow-2xl backdrop-blur-xl flex items-center gap-3 min-w-[300px]`}>
+              {notification.type === 'success' ? (
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              ) : (
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              )}
+              <p className="text-white font-semibold">{notification.message}</p>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

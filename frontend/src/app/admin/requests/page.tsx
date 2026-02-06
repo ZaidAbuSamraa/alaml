@@ -7,13 +7,22 @@ import ConfirmDialog from '@/components/ConfirmDialog';
 import { API_URL } from '@/lib/api';
 import { formatDate } from '@/lib/formatters';
 
+interface RequestItem {
+  id: number;
+  content: string;
+  status: 'pending' | 'approved' | 'rejected';
+  adminNotes?: string;
+  orderIndex: number;
+}
+
 interface ResourceRequest {
   id: number;
   requestName: string;
-  description: string;
+  description?: string;
   requestDate: string;
   status: 'pending' | 'approved' | 'rejected';
   adminNotes?: string;
+  items?: RequestItem[];
   createdAt: string;
   employee: {
     id: number;
@@ -135,6 +144,48 @@ export default function AdminRequestsPage() {
         return <span className="px-3 py-1 bg-red-600/20 text-red-400 rounded-full text-sm font-semibold">مرفوض</span>;
       default:
         return <span className="px-3 py-1 bg-yellow-600/20 text-yellow-400 rounded-full text-sm font-semibold">قيد المراجعة</span>;
+    }
+  };
+
+  const getItemStatusBadge = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return <span className="px-2 py-1 bg-green-600/20 text-green-400 rounded text-xs font-semibold">✓ مقبول</span>;
+      case 'rejected':
+        return <span className="px-2 py-1 bg-red-600/20 text-red-400 rounded text-xs font-semibold">✗ مرفوض</span>;
+      default:
+        return <span className="px-2 py-1 bg-yellow-600/20 text-yellow-400 rounded text-xs font-semibold">⏳ معلق</span>;
+    }
+  };
+
+  const handleUpdateItemStatus = async (itemId: number, status: 'approved' | 'rejected') => {
+    if (!selectedRequest) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/resource-requests/${selectedRequest.id}/items/${itemId}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status }),
+      });
+
+      if (response.ok) {
+        setSuccess(`تم ${status === 'approved' ? 'قبول' : 'رفض'} العنصر بنجاح`);
+        fetchRequests();
+        // Refresh selected request
+        const updatedRequest = await fetch(`${API_URL}/resource-requests/${selectedRequest.id}`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (updatedRequest.ok) {
+          const data = await updatedRequest.json();
+          setSelectedRequest(data);
+        }
+      }
+    } catch (err: any) {
+      setError(err.message || 'فشل تحديث العنصر');
     }
   };
 
@@ -270,10 +321,46 @@ export default function AdminRequestsPage() {
                   </p>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-400 mb-1">الوصف</label>
-                  <p className="text-white bg-dark-900/50 p-4 rounded-lg">{selectedRequest.description}</p>
-                </div>
+                {selectedRequest.items && selectedRequest.items.length > 0 ? (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-400 mb-2">عناصر الطلب</label>
+                    <div className="space-y-3">
+                      {selectedRequest.items.map((item) => (
+                        <div key={item.id} className="bg-dark-900/50 p-4 rounded-lg border border-dark-700">
+                          <div className="flex items-start gap-3 mb-2">
+                            <span className="text-primary-400 mt-1">•</span>
+                            <p className="flex-1 text-white">{item.content}</p>
+                            <div>{getItemStatusBadge(item.status)}</div>
+                          </div>
+                          {item.adminNotes && (
+                            <p className="text-sm text-gray-400 mt-2 pr-6">ملاحظة: {item.adminNotes}</p>
+                          )}
+                          {item.status === 'pending' && (
+                            <div className="flex gap-2 mt-3 pr-6">
+                              <button
+                                onClick={() => handleUpdateItemStatus(item.id, 'approved')}
+                                className="flex-1 bg-green-600/20 hover:bg-green-600/30 text-green-400 px-3 py-2 rounded-lg transition text-sm font-semibold"
+                              >
+                                ✓ قبول
+                              </button>
+                              <button
+                                onClick={() => handleUpdateItemStatus(item.id, 'rejected')}
+                                className="flex-1 bg-red-600/20 hover:bg-red-600/30 text-red-400 px-3 py-2 rounded-lg transition text-sm font-semibold"
+                              >
+                                ✗ رفض
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : selectedRequest.description ? (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-400 mb-1">الوصف</label>
+                    <p className="text-white bg-dark-900/50 p-4 rounded-lg">{selectedRequest.description}</p>
+                  </div>
+                ) : null}
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-400 mb-1">الحالة</label>

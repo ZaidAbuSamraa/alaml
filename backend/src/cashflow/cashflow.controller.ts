@@ -5,7 +5,7 @@ import { CreateOpeningCashDto, CreateSalesDto, CreatePaymentDto, UpdateDaySettin
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('cashflow')
-@UseGuards(JwtAuthGuard)
+
 export class CashFlowController {
   constructor(private readonly cashFlowService: CashFlowService) {}
 

@@ -34,4 +34,9 @@ export class EmployeesController {
   remove(@Param('id') id: string) {
     return this.employeesService.remove(+id);
   }
+
+  @Put(':id/bonus')
+  updateBonus(@Param('id') id: string, @Body() data: { bonus: number }) {
+    return this.employeesService.updateBonus(+id, data.bonus);
+  }
 }

@@ -1,5 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDateColumn } from 'typeorm';
 import { Employee } from './employee.entity';
+import { RequestItem } from './request-item.entity';
 
 export enum RequestStatus {
   PENDING = 'pending',
@@ -15,7 +16,7 @@ export class ResourceRequest {
   @Column()
   requestName: string;
 
-  @Column('text')
+  @Column('text', { nullable: true })
   description: string;
 
   @Column({ type: 'date' })
@@ -36,6 +37,9 @@ export class ResourceRequest {
 
   @Column()
   employeeId: number;
+
+  @OneToMany(() => RequestItem, item => item.request, { cascade: true })
+  items: RequestItem[];
 
   @CreateDateColumn()
   createdAt: Date;

@@ -166,16 +166,18 @@ export class CashFlowService {
       const payments = day?.payments || [];
       const totalPayments = payments.reduce((sum, p) => sum + Number(p.amount), 0);
       
-      let openingCash: number;
-      if (day?.isOpeningCashManual) {
-        openingCash = Number(day.openingCash);
-      } else if (previousEndingCash !== null) {
-        openingCash = previousEndingCash;
-      } else {
-        openingCash = day?.openingCash ? Number(day.openingCash) : 0;
-      }
-      
       const deductSameDay = day?.deductSameDay !== undefined ? day.deductSameDay : true;
+      
+      // Set initial opening cash only for first day or manual entries
+      let openingCash: number = 0;
+      if (d === 1) {
+        // First day of month
+        openingCash = day?.openingCash ? Number(day.openingCash) : 0;
+      } else if (day?.isOpeningCashManual) {
+        // Manual opening cash set by user
+        openingCash = Number(day.openingCash);
+      }
+      // For other days, opening cash will be set from previous day's ending cash in the calculation loop
       
       result.push({
         date: dateStr,
@@ -193,40 +195,44 @@ export class CashFlowService {
       });
     }
     
+    // Calculate opening cash, ending cash, and payments for all days
     for (let i = 0; i < result.length; i++) {
       const currentDay = result[i];
-      const deductSameDay = currentDay.deductSameDay;
       
-      let endingCash: number;
-      let tomorrowPayments: number = 0;
+      // Set opening cash from previous day's ending cash (except for first day or manual entries)
+      if (i > 0 && !currentDay.isOpeningCashManual) {
+        currentDay.openingCash = result[i - 1].endingCash;
+      }
       
-      if (deductSameDay) {
+      // Calculate payments that affect this day
+      let paymentsToDeduct = 0;
+      let tomorrowPayments = 0;
+      
+      if (currentDay.deductSameDay) {
         // نفس اليوم: المدفوعات تُخصم من اليوم الحالي
-        endingCash = currentDay.openingCash + currentDay.sales - currentDay.totalPayments;
-        tomorrowPayments = 0;
+        paymentsToDeduct = currentDay.totalPayments;
       } else {
-        // وضع النقل: المدفوعات تُخصم من اليوم السابق
-        // نخصم المدفوعات من اليوم السابق بدلاً من اليوم الحالي
-        if (i > 0) {
-          const previousDay = result[i - 1];
-          previousDay.endingCash = previousDay.endingCash - currentDay.totalPayments;
-          tomorrowPayments = currentDay.totalPayments;
-        }
-        endingCash = currentDay.openingCash + currentDay.sales;
+        // وضع النقل: المدفوعات لا تُخصم من اليوم الحالي
+        paymentsToDeduct = 0;
       }
       
-      const status = endingCash >= settings.safetyThreshold ? 'Safe' : (endingCash >= 0 ? 'Warning' : 'Deficit');
+      // Check if next day has payments that should be deducted from current day
+      if (i < result.length - 1) {
+        const nextDay = result[i + 1];
+        if (!nextDay.deductSameDay) {
+          // اليوم التالي في وضع النقل: مدفوعاته تُخصم من اليوم الحالي
+          paymentsToDeduct += nextDay.totalPayments;
+          tomorrowPayments = nextDay.totalPayments;
+        }
+      }
       
-      currentDay.endingCash = endingCash;
+      // Calculate ending cash
+      currentDay.endingCash = currentDay.openingCash + currentDay.sales - paymentsToDeduct;
       currentDay.tomorrowPayments = tomorrowPayments;
-      currentDay.status = status;
       
-      // تحديث opening cash لليوم التالي
-      if (i + 1 < result.length) {
-        if (!result[i + 1].isOpeningCashManual) {
-          result[i + 1].openingCash = endingCash;
-        }
-      }
+      // Set status
+      const status = currentDay.endingCash >= settings.safetyThreshold ? 'Safe' : (currentDay.endingCash >= 0 ? 'Warning' : 'Deficit');
+      currentDay.status = status;
     }
     
     return result;

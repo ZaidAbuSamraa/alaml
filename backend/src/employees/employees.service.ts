@@ -45,7 +45,7 @@ export class EmployeesService {
 
   async findAll() {
     const employees = await this.employeeRepository.find({
-      select: ['id', 'name', 'username', 'hourlyWage', 'specialty', 'createdAt', 'updatedAt'],
+      select: ['id', 'name', 'username', 'hourlyWage', 'bonus', 'specialty', 'createdAt', 'updatedAt'],
     });
     return employees;
   }
@@ -54,14 +54,30 @@ export class EmployeesService {
     await this.employeeRepository.update(id, updateData);
     return await this.employeeRepository.findOne({ 
       where: { id },
-      select: ['id', 'name', 'username', 'hourlyWage', 'specialty', 'createdAt', 'updatedAt'],
+      select: ['id', 'name', 'username', 'hourlyWage', 'bonus', 'specialty', 'createdAt', 'updatedAt'],
     });
   }
 
   async findOne(id: number) {
     return await this.employeeRepository.findOne({ 
       where: { id },
-      select: ['id', 'name', 'username', 'hourlyWage', 'specialty', 'createdAt', 'updatedAt'],
+      select: ['id', 'name', 'username', 'hourlyWage', 'bonus', 'specialty', 'createdAt', 'updatedAt'],
+    });
+  }
+
+  async updateBonus(id: number, bonus: number) {
+    const employee = await this.employeeRepository.findOne({ where: { id } });
+    if (!employee) {
+      throw new NotFoundException('الموظف غير موجود');
+    }
+    
+    // Accumulate bonus instead of replacing
+    employee.bonus = Number(employee.bonus || 0) + Number(bonus);
+    await this.employeeRepository.save(employee);
+    
+    return await this.employeeRepository.findOne({ 
+      where: { id },
+      select: ['id', 'name', 'username', 'hourlyWage', 'bonus', 'specialty', 'createdAt', 'updatedAt'],
     });
   }
 

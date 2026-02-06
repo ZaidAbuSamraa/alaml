@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ResourceRequest, RequestStatus } from '../entities/resource-request.entity';
+import { RequestItem } from '../entities/request-item.entity';
 import { Notification, NotificationType } from '../entities/notification.entity';
 import { CreateResourceRequestDto } from './dto/create-resource-request.dto';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
@@ -11,14 +12,31 @@ export class ResourceRequestsService {
   constructor(
     @InjectRepository(ResourceRequest)
     private resourceRequestRepository: Repository<ResourceRequest>,
+    @InjectRepository(RequestItem)
+    private requestItemRepository: Repository<RequestItem>,
     @InjectRepository(Notification)
     private notificationRepository: Repository<Notification>,
     private whatsAppService: WhatsAppService,
   ) {}
 
   async create(createResourceRequestDto: CreateResourceRequestDto): Promise<ResourceRequest> {
-    const request = this.resourceRequestRepository.create(createResourceRequestDto);
+    const { items, ...requestData } = createResourceRequestDto;
+    
+    // Create request
+    const request = this.resourceRequestRepository.create(requestData);
     const savedRequest = await this.resourceRequestRepository.save(request);
+
+    // Create items
+    if (items && items.length > 0) {
+      const requestItems = items.map((item, index) => 
+        this.requestItemRepository.create({
+          content: item.content,
+          requestId: savedRequest.id,
+          orderIndex: index,
+        })
+      );
+      await this.requestItemRepository.save(requestItems);
+    }
 
     // Create notification for admin
     const notification = this.notificationRepository.create({
@@ -37,7 +55,7 @@ export class ResourceRequestsService {
   async findAll(): Promise<ResourceRequest[]> {
     return await this.resourceRequestRepository.find({
       order: { createdAt: 'DESC' },
-      relations: ['employee'],
+      relations: ['employee', 'items'],
     });
   }
 
@@ -45,13 +63,14 @@ export class ResourceRequestsService {
     return await this.resourceRequestRepository.find({
       where: { employeeId },
       order: { createdAt: 'DESC' },
+      relations: ['items'],
     });
   }
 
   async findOne(id: number): Promise<ResourceRequest> {
     const request = await this.resourceRequestRepository.findOne({
       where: { id },
-      relations: ['employee'],
+      relations: ['employee', 'items'],
     });
 
     if (!request) {
@@ -70,6 +89,21 @@ export class ResourceRequestsService {
     }
 
     return await this.resourceRequestRepository.save(request);
+  }
+
+  async updateItemStatus(itemId: number, status: string, adminNotes?: string): Promise<RequestItem> {
+    const item = await this.requestItemRepository.findOne({ where: { id: itemId } });
+    
+    if (!item) {
+      throw new NotFoundException('العنصر غير موجود');
+    }
+    
+    item.status = status as any;
+    if (adminNotes) {
+      item.adminNotes = adminNotes;
+    }
+
+    return await this.requestItemRepository.save(item);
   }
 
   async delete(id: number): Promise<{ message: string }> {
